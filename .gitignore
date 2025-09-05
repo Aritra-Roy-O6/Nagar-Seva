@@ -1,0 +1,27 @@
+# General / IDE files
+.idea
+.vscode
+*.suo
+*.user
+*.log
+.DS_Store
+Thumbs.db
+
+# Node.js / Server (in /server directory)
+server/node_modules
+server/dist
+server/npm-debug.log*
+server/.env
+
+# React / Client (in /client directory)
+client/node_modules
+client/dist
+client/.vite
+client/.env
+client/.env.local
+client/.env.*.local
+client/coverage
+
+# Optional: Build artifacts if they end up in the root
+/dist
+/build
