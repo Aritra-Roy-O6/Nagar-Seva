@@ -25,3 +25,5 @@ client/coverage
 # Optional: Build artifacts if they end up in the root
 /dist
 /build
+
+server/firebase-service-account.json
