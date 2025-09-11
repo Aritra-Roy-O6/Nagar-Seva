@@ -32,12 +32,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 
-// ## 1. Middleware
+// ## 1. Core Middleware
 app.use(cors());
 app.use(express.json());
 
 // ## 2. Security Middleware (Rate Limiting)
-// MENTOR FIX: Added rate limiting to prevent abuse of the report submission endpoint.
 const reportLimiter = rateLimit({
 	windowMs: 60 * 60 * 1000, // 1 hour
 	max: 10, // Limit each IP to 10 reports per windowMs
@@ -62,6 +61,7 @@ const auth = (req, res, next) => {
 };
 
 const adminAuth = (req, res, next) => {
+    // Mentor Fix: Added null check for req.user
     if (!req.user || (req.user.role !== 'department_admin' && req.user.role !== 'super_admin')) {
         return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
     }
@@ -70,36 +70,41 @@ const adminAuth = (req, res, next) => {
 
 
 // ## 4. API Routes
-
-// ### Auth Routes
+// ### ================= AUTHENTICATION ROUTES =================
 app.post('/api/auth/register', async (req, res) => {
-    try {
-        const { fullName, email, password } = req.body;
-        const userExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userExists.rows.length > 0) {
-            return res.status(400).json({ message: 'User with this email already exists.' });
-        }
-        const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash(password, salt);
-        const newUserResult = await pool.query(
-            'INSERT INTO users (full_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, email, full_name, role',
-            [fullName, email, passwordHash]
-        );
-        const newUser = newUserResult.rows[0];
-        const payload = { user: { id: newUser.id, role: newUser.role } };
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' },
-            (err, token) => {
-                if (err) throw err;
-                res.status(201).json({ token, user: newUser });
-            }
-        );
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+  try {
+    const { fullName, email, password, role, secret } = req.body;
+
+    if (role === 'department_admin') {
+      if (secret !== process.env.ADMIN_SECRET_KEY) {
+        return res.status(403).json({ message: 'Invalid Admin Secret Key. Access denied.' });
+      }
     }
+
+    const userExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userExists.rows.length > 0) {
+      return res.status(400).json({ message: 'User with this email already exists.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+    const userRole = role === 'department_admin' ? 'department_admin' : 'citizen';
+
+    const newUserResult = await pool.query(
+        'INSERT INTO users (full_name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, email, full_name, role',
+        [fullName, email, passwordHash, userRole]
+    );
+    const newUser = newUserResult.rows[0];
+    
+    // Mentor Fix: Return token on register for better UX
+    const payload = { user: { id: newUser.id, role: newUser.role } };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+    res.status(201).json({ user: newUser, token });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -115,22 +120,16 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
         const payload = { user: { id: user.id, role: user.role } };
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token, user: { id: user.id, fullName: user.full_name, email: user.email, role: user.role } });
-            }
-        );
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+        res.json({ token, user: { id: user.id, fullName: user.full_name, email: user.email, role: user.role } });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
     }
 });
 
-// ### User & Citizen Routes
+
+// ### ================= CITIZEN ROUTES =================
 app.post('/api/users/fcm-token', auth, async (req, res) => {
     const { token } = req.body;
     try {
@@ -145,7 +144,7 @@ app.post('/api/users/fcm-token', auth, async (req, res) => {
 app.get('/api/upload-signature', auth, (req, res) => {
     const timestamp = Math.round((new Date).getTime() / 1000);
     const signature = cloudinary.utils.api_sign_request({
-        timestamp: timestamp,
+        timestamp,
         source: 'uw',
         folder: 'NagarSeva-Reports'
     }, process.env.CLOUDINARY_API_SECRET);
@@ -189,6 +188,7 @@ app.get('/api/reports/:id', auth, async (req, res) => {
             return res.status(404).json({ message: 'Report not found' });
         }
         const report = result.rows[0];
+        // Mentor Fix: Security hole patched. Only owner or admin can view.
         const isAdmin = req.user.role === 'department_admin' || req.user.role === 'super_admin';
         if (report.user_id !== req.user.id && !isAdmin) {
             return res.status(403).json({ message: 'Access denied.' });
@@ -210,7 +210,8 @@ app.get('/api/leaderboard', auth, async (req, res) => {
     }
 });
 
-// ### Admin Routes
+
+// ### ================= ADMIN ROUTES =================
 app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
     try {
         const { status, department_id, start_date, end_date } = req.query;
@@ -236,30 +237,25 @@ app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
     const { status, department_id } = req.body;
     if (!status) return res.status(400).json({ message: 'Status is required.' });
 
-    // MENTOR FIX: Use a transaction for atomicity.
+    // Mentor Fix: Use a transaction for atomicity.
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-
-        // Step 1: Update the report
         const updatedReportResult = await client.query(
             'UPDATE reports SET status = $1, department_id = COALESCE($2, department_id), updated_at = now() WHERE id = $3 RETURNING *',
             [status, department_id, req.params.id]
         );
         if (updatedReportResult.rows.length === 0) {
-            // No need to commit or rollback, just return
+            await client.query('ROLLBACK'); // Rollback if not found
             return res.status(404).json({ message: 'Report not found' });
         }
         const updatedReport = updatedReportResult.rows[0];
-
-        // Step 2: Award points if resolved
         if (status === 'resolved') {
             await client.query('UPDATE users SET points = points + $1 WHERE id = $2', [10, updatedReport.user_id]);
         }
-
         await client.query('COMMIT');
-
-        // Step 3: Send notification (outside transaction)
+        
+        // Notification logic is outside transaction for better performance
         const userResult = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [updatedReport.user_id]);
         if (userResult.rows.length > 0 && userResult.rows[0].fcm_token) {
             const message = {
@@ -273,7 +269,6 @@ app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
                 .then(response => console.log('Successfully sent message:', response))
                 .catch(error => console.error('Error sending message:', error));
         }
-
         res.json(updatedReport);
     } catch (err) {
         await client.query('ROLLBACK');
