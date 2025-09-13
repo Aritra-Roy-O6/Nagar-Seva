@@ -1,24 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
-// AdminLayout is no longer imported or used here
+import ReportDetailModal from '../components/ReportDetailModal';
 
 const DashboardPage = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchReports = async () => {
-      try {
-        setLoading(true);
-        const response = await apiClient.get('/admin/reports');
-        setReports(response.data);
-      } catch (err) {
-        setError('Failed to fetch reports.');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+        try {
+            setLoading(true);
+            const response = await apiClient.get('/admin/reports');
+            setReports(response.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     };
     fetchReports();
   }, []);
@@ -31,16 +31,29 @@ const DashboardPage = () => {
     }
   };
 
-  if (loading) return <p>Loading reports...</p>;
-  if (error) return <p className="text-danger">{error}</p>;
+  const handleViewDetails = (report) => {
+    setSelectedReport(report);
+    setIsModalOpen(true);
+  };
 
-  // The component now only returns the content, not the layout
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedReport(null);
+  };
+
+  const handleReportUpdate = (updatedReport) => {
+    setReports(reports.map(r => r.id === updatedReport.id ? updatedReport : r));
+  };
+
+  if (loading) return <p>Loading reports...</p>;
+
   return (
     <>
       <h1 className="mb-4">Reports Dashboard</h1>
       <div className="card shadow-sm">
         <div className="card-body">
           <table className="table table-hover">
+            {/* Added full table headers for clarity */}
             <thead className="table-light">
               <tr>
                 <th scope="col">Problem Type</th>
@@ -53,6 +66,7 @@ const DashboardPage = () => {
               {reports.map((report) => (
                 <tr key={report.id}>
                   <td>{report.problem_type}</td>
+                  {/* Added status badge to the table */}
                   <td>
                     <span className={`badge ${getStatusBadge(report.status)}`}>
                       {report.status}
@@ -60,7 +74,7 @@ const DashboardPage = () => {
                   </td>
                   <td className="text-center">{new Date(report.created_at).toLocaleString()}</td>
                   <td className="text-center">
-                    <button className="btn btn-primary btn-sm">
+                    <button className="btn btn-primary btn-sm" onClick={() => handleViewDetails(report)}>
                       View Details
                     </button>
                   </td>
@@ -70,6 +84,13 @@ const DashboardPage = () => {
           </table>
         </div>
       </div>
+
+      <ReportDetailModal
+        report={selectedReport}
+        show={isModalOpen}
+        onClose={handleCloseModal}
+        onUpdate={handleReportUpdate}
+      />
     </>
   );
 };
