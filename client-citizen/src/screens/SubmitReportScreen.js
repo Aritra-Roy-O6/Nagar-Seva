@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Exif from 'react-native-exif';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext } from '../context/AuthContext.js';
 
 // --- Helper for Gemini API ---
 // IMPORTANT: You must have a valid API key for the Gemini API.
@@ -25,7 +25,7 @@ const departments = [
   "Health Department"
 ];
 
-const ComplaintScreen = ({ navigation }) => {
+const SubmitReportScreen = ({ navigation }) => {
   const { userToken } = useContext(AuthContext); // Assuming you store the auth token in context
 
   // State Management
@@ -322,4 +322,4 @@ const styles = StyleSheet.create({
   buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
 });
 
-export default ComplaintScreen;
+export default SubmitReportScreen;
