@@ -9,8 +9,6 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import SubmitReportScreen from '../screens/SubmitReportScreen';
 import MyReportsScreen from '../screens/MyReportsScreen';
-import ReportDetailScreen from '../screens/ReportDetailScreen';
-import LeaderboardScreen from '../screens/LeaderboardScreen';
 
 const Stack = createStackNavigator();
 
@@ -48,8 +46,6 @@ const AppNavigator = () => {
           <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'NagarSeva Dashboard' }} />
           <Stack.Screen name="SubmitReport" component={SubmitReportScreen} options={{ title: 'Submit New Report' }} />
           <Stack.Screen name="MyReports" component={MyReportsScreen} options={{ title: 'My Submitted Reports' }} />
-          <Stack.Screen name="ReportDetail" component={ReportDetailScreen} options={{ title: 'Report Details' }} />
-          <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Top Citizens' }}/>
         </>
       )}
     </Stack.Navigator>

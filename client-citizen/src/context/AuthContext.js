@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import apiClient from '../api/client';
+import apiClient from '../api/client'; // Assuming you have an axios or fetch wrapper
 
 export const AuthContext = createContext();
 
@@ -15,9 +15,10 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       const token = await AsyncStorage.getItem('userToken');
       setUserToken(token);
-      setIsLoading(false);
     } catch (e) {
       console.log('Error checking for saved token:', e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -26,33 +27,48 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const authContext = {
-    // The signIn function
-    signIn: async (email, password) => {
+    /**
+     * Handles user sign-in using phone number and password.
+     * Aligns with the /api/auth/login endpoint.
+     */
+    signIn: async (phone, password, userType = 'citizen') => {
       try {
-        const response = await apiClient.post('/auth/login', { email, password });
+        const response = await apiClient.post('/auth/login', {
+          identifier: phone,
+          password,
+          userType
+        });
         const { token } = response.data;
         await AsyncStorage.setItem('userToken', token);
         setUserToken(token);
       } catch (e) {
-        // Handle login errors (e.g., show an alert)
         console.log('Login error:', e.response?.data?.message || 'An error occurred');
         throw new Error(e.response?.data?.message || 'Login Failed');
       }
     },
-    // The register function
-    register: async (fullName, email, password) => {
+    /**
+     * Handles new citizen registration using full name, phone number, and password.
+     * Aligns with the /api/auth/citizen/register endpoint.
+     * Note: This function does not log the user in, as the backend endpoint
+     * does not return a token upon registration.
+     */
+    register: async (fullName, phone, password) => {
       try {
-        const response = await apiClient.post('/auth/register', { fullName, email, password });
-        // After successful registration, we get the token back directly
-        const { token } = response.data;
-        await AsyncStorage.setItem('userToken', token);
-        setUserToken(token);
+        await apiClient.post('/auth/citizen/register', {
+          name: fullName,
+          phone_no: phone,
+          password: password
+        });
+        // Registration successful, but no token is returned from this endpoint.
+        // The UI should guide the user to the login screen.
       } catch (e) {
         console.log('Register error:', e.response?.data?.message || 'An error occurred');
         throw new Error(e.response?.data?.message || 'Registration Failed');
       }
     },
-    // The signOut function
+    /**
+     * Handles user sign-out by removing the token.
+     */
     signOut: async () => {
       try {
         await AsyncStorage.removeItem('userToken');
@@ -71,4 +87,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
