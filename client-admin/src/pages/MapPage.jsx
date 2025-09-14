@@ -42,7 +42,7 @@ const MapPage = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const position = [22.5726, 88.3639]; // Default center (Kolkata)
+  const position = [23.3441, 85.3096]; // Default center (Ranchi)
 
   useEffect(() => {
     const fetchReports = async () => {
