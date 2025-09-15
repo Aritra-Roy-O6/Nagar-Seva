@@ -1,4 +1,4 @@
-package com.anonymous.clientcitizen
+package com.citizenapp.mobile
 
 import android.os.Build
 import android.os.Bundle
