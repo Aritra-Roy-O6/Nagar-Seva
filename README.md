@@ -1,104 +1,101 @@
-<img width="820" height="434" alt="image" src="https://github.com/user-attachments/assets/3fe8a90b-163d-4732-9d98-663d81089798" />
+# 🏙️ Nagar-Seva
 
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()  
+[![License](https://img.shields.io/badge/license-MIT-blue)]()  
+[![Tech Stack](https://img.shields.io/badge/stack-React%20%7C%20Kotlin%20%7C%20Node.js-orange)]()  
+[![Contributors](https://img.shields.io/github/contributors/Aritra-Roy-O6/Nagar-Seva)]()  
+[![Last Commit](https://img.shields.io/github/last-commit/Aritra-Roy-O6/Nagar-Seva)]()  
 
-## Table of Contents
+---
 
-  * [Overview](#L15)
-  * [Getting Started](#L31)
-      * [Prerequisites](#L33)
-      * [Installation](#L38)
-      * [Usage](#L68)
-  * [Testing](#L86)
+## 📑 Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Usage](#usage)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Screenshots & Demo](#screenshots--demo)
+- [Contributors](#contributors)
+- [License](#license)
 
------
+---
 
-## Overview
+## 🏙️ Overview
+**Nagar-Seva** is Team Hexane’s submission for **SIH'25** – a civic issue reporting platform that connects citizens and municipal authorities. It provides a **React-based dashboard**, **citizen mobile app**, and **scalable backend APIs** for seamless issue management.  
 
-Nagar-Seva is an open-source civic issue reporting platform that seamlessly integrates citizen engagement with municipal management. It combines a React-based admin dashboard, real-time map visualizations, and secure authentication to streamline issue resolution workflows.
+---
 
-### Why Nagar-Seva?
+## ✨ Features
+- 🗺️ **Map Visualization** – Real-time issue tracking on interactive maps.  
+- 🔐 **Secure Authentication** – Role-based access for admins & citizens.  
+- ⚡ **Fast Development** – Powered by **React + Vite** with hot reloading.  
+- 📱 **Citizen App** – Report issues with images, video, geolocation & AI categorization.  
+- 🏗️ **Modular Architecture** – Extend APIs & UI components easily.  
 
-This project empowers communities by providing a scalable, full-stack solution for civic reporting and administration. The core features include:
+---
 
-  * **Map Visualization:** Display and manage reported issues with interactive, real-time maps.
-  * **Secure Authentication:** Role-based access control for admins and citizens, ensuring data security.
-  * **Fast Development:** React + Vite setup with hot module replacement for rapid iteration.
-  * **Modular Architecture:** Easily extend backend APIs and frontend components for custom needs.
-  * **Mobile Support:** Citizen app with multimedia, location, and AI-driven categorization.
-
------
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-
-  * **Programming Language:** JavaScript
-  * **Package Manager:** Npm, Gradle
+- **Languages**: JavaScript, Kotlin  
+- **Package Managers**: npm, Gradle  
 
 ### Installation
-
-Build Nagar-Seva from the source and install dependencies:
-
-1.  Clone the repository:
-
-    ```bash
-    git clone https://github.com/Aritra-Roy-06/Nagar-Seva
-    ```
-
-2.  Navigate to the project directory:
-
-    ```bash
-    cd Nagar-Seva
-    ```
-
-3.  Install the dependencies:
-
-    Using `npm`:
-
-    ```bash
-    npm install
-    ```
-
-    Using `gradle`:
-
-    ```bash
-    gradle build
-    ```
-
-### Usage
-
-Run the project with:
-
-Using `npm`:
-
 ```bash
+# Clone repository
+git clone https://github.com/Aritra-Roy-O6/Nagar-Seva
+cd Nagar-Seva
+
+# Install dependencies
+npm install      # For frontend
+gradle build     # For backend
+Usage
+bash
+Copy code
+# Run frontend
 npm start
-```
 
-Using `gradle`:
-
-```bash
+# Run backend
 gradle run
-```
-
------
-
-## Testing
-
-Nagar-Seva uses the `{test_framework}` test framework. Run the test suite with:
-
-Using `npm`:
-
-```bash
+🧪 Testing
+bash
+Copy code
+# Frontend tests
 npm test
-```
 
-Using `gradle`:
-
-```bash
+# Backend tests
 gradle test
-```
+📂 Project Structure
+graphql
+Copy code
+Nagar-Seva/
+│── client-admin/     # React-based admin dashboard
+│── client-citizen/   # Citizen mobile client
+│── server/           # Backend APIs and logic
+│── .expo/            # Expo project configs
+│── .gitignore
+│── README.md
+🖼️ Screenshots & Demo
+📌 Add actual screenshots or demo GIFs here once available.
 
------
+Citizen Mobile App
 
-[⬆️ Return to Top](#L1)
+Admin Dashboard
+
+Map Integration
+
+Live Demo: Coming Soon...
+
+👥 Contributors
+Aritra Roy
+
+Tiyash
+
+Soutik
+
+📜 License
+This project is open-source under the MIT License.
+See LICENSE for details.
