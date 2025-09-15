@@ -1,112 +1,111 @@
-# NagarSeva - Crowdsourced Civic Issue Resolution System
+# NAGAR-SEVA
 
-> A mobile-first platform designed to empower citizens and streamline municipal operations by bridging the gap between reporting and resolving local civic issues.
+Empowering Citizens, Accelerating Civic Change
 
-Built for the Government of Jharkhand Hackathon under the "Clean & Green Technology" theme.
+   
 
----
+Built with the tools and technologies:
 
-## ✨ Core Features (MVP)
+-----
 
-### 👨‍👩‍👧 For Citizens (PWA)
-* **Verified Authentication:** Secure sign-up and login for citizens.
-* **Report an Issue:** Easily submit a civic issue with a photo, auto-captured GPS location, and a description.
-* **Track Status:** View a list of submitted reports and track their status in real-time (`Submitted` -> `In Progress` -> `Resolved`).
-* **Push Notifications:** Receive updates on your report's progress.
+## Table of Contents
 
-### 👮 For Admins (Web Portal)
-* **Centralized Dashboard:** View, filter, and sort all incoming reports.
-* **Live Issue Map:** Visualize all reported issues on an interactive map using Leaflet.js.
-* **Status Management:** Update the status of reports as they are addressed.
-* **Department Allocation:** Assign reports to the correct municipal department (e.g., Sanitation, Public Works).
+  * [Overview](https://www.google.com/search?q=%23overview)
+  * [Getting Started](https://www.google.com/search?q=%23getting-started)
+      * [Prerequisites](https://www.google.com/search?q=%23prerequisites)
+      * [Installation](https://www.google.com/search?q=%23installation)
+      * [Usage](https://www.google.com/search?q=%23usage)
+  * [Testing](https://www.google.com/search?q=%23testing)
 
-## 💻 Tech Stack
+-----
 
-| Area      | Technology                                           |
-| --------- | ---------------------------------------------------- |
-| **Frontend** | React (Vite), React Native, Tailwind CSS, Leaflet.js             |
-| **Backend** | Node.js, Express.js                                  |
-| **Database** | PostgreSQL + PostGIS for geospatial queries          |
-| **Services** | Cloudinary (Image Hosting), Firebase (Notifications) |
-| **Deployment**| Vercel (Client), Railway/Render (Server + DB)        |
+## Overview
 
----
+Nagar-Seva is an open-source civic issue reporting platform that seamlessly integrates citizen engagement with municipal management. It combines a React-based admin dashboard, real-time map visualizations, and secure authentication to streamline issue resolution workflows.
 
-## 🚀 Getting Started
+### Why Nagar-Seva?
 
-Follow these instructions to get the project running locally for development and testing.
+This project empowers communities by providing a scalable, full-stack solution for civic reporting and administration. The core features include:
+
+  * **Map Visualization:** Display and manage reported issues with interactive, real-time maps.
+  * **Secure Authentication:** Role-based access control for admins and citizens, ensuring data security.
+  * **Fast Development:** React + Vite setup with hot module replacement for rapid iteration.
+  * **Modular Architecture:** Easily extend backend APIs and frontend components for custom needs.
+  * **Mobile Support:** Citizen app with multimedia, location, and AI-driven categorization.
+
+-----
+
+## Getting Started
 
 ### Prerequisites
 
-You must have the following installed on your machine:
-* [Node.js](https://nodejs.org/) (v18 or higher)
-* `npm` or `yarn`
-* [PostgreSQL](https://www.postgresql.org/download/) (with the PostGIS extension enabled)
+  * **Programming Language:** JavaScript
+  * **Package Manager:** Npm, Gradle
 
-### Local Setup
+### Installation
 
-**1. Clone the repository:**
+Build Nagar-Seva from the source and install dependencies:
+
+1.  Clone the repository:
+
+    ```bash
+    git clone https://github.com/Aritra-Roy-06/Nagar-Seva
+    ```
+
+2.  Navigate to the project directory:
+
+    ```bash
+    cd Nagar-Seva
+    ```
+
+3.  Install the dependencies:
+
+    Using `npm`:
+
+    ```bash
+    npm install
+    ```
+
+    Using `gradle`:
+
+    ```bash
+    gradle build
+    ```
+
+### Usage
+
+Run the project with:
+
+Using `npm`:
+
 ```bash
-git clone [YOUR_REPOSITORY_URL]
-cd [PROJECT_FOLDER]
+npm start
 ```
 
-**2. Setup the Backend Server:**
+Using `gradle`:
+
 ```bash
-# Navigate to the server directory
-cd server
-
-# Install dependencies
-npm install
-
-# Create the environment file
-cp .env.example .env
+gradle run
 ```
-Now, open the `.env` file and add your PostgreSQL database URL and other secrets.
-```env
-# server/.env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE"
-PORT=3001
-JWT_SECRET="your-super-secret-key"
-```
-Finally, run the database migrations and start the server:
+
+-----
+
+## Testing
+
+Nagar-Seva uses the `{test_framework}` test framework. Run the test suite with:
+
+Using `npm`:
+
 ```bash
-# Optional: Add a migration script command to your package.json
-# npm run db:migrate 
-
-npm run dev
+npm test
 ```
-The server should now be running on `http://localhost:3001`.
 
-**3. Setup the Frontend Client:**
+Using `gradle`:
+
 ```bash
-# Navigate to the client directory from the root
-cd client
-
-# Install dependencies
-npm install
-
-# Create the environment file
-cp .env.example .env
+gradle test
 ```
-Open the `.env` file to add the backend API URL.
-```env
-# client/.env
-VITE_API_BASE_URL="http://localhost:3001"
-```
-Start the React development server:
-```bash
-npm run dev
-```
-The client should now be running on `http://localhost:5173` (or another port if 5173 is busy).
 
----
-## 📁 Project Structure
+-----
 
-This project is a monorepo containing both the client and server code.
-
-```
-/
-├── client/         # React Frontend (Citizen PWA + Admin Portal)
-└── server/         # Node.js Backend (Express API)
-```
+[⬆️ Return to Top](https://www.google.com/search?q=%23nagar-seva)
