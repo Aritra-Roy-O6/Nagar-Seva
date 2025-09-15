@@ -2,9 +2,18 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()  
 [![License](https://img.shields.io/badge/license-MIT-blue)]()  
-[![Tech Stack](https://img.shields.io/badge/stack-React%20%7C%20Kotlin%20%7C%20Node.js-orange)]()  
 [![Contributors](https://img.shields.io/github/contributors/Aritra-Roy-O6/Nagar-Seva)]()  
 [![Last Commit](https://img.shields.io/github/last-commit/Aritra-Roy-O6/Nagar-Seva)]()  
+
+---
+
+## 🚀 Tech Stack  
+![React](https://img.shields.io/badge/Frontend-React-blue?logo=react&logoColor=white)  
+![Vite](https://img.shields.io/badge/Bundler-Vite-purple?logo=vite&logoColor=white)  
+![Node.js](https://img.shields.io/badge/Backend-Node.js-green?logo=node.js&logoColor=white)  
+![Kotlin](https://img.shields.io/badge/Mobile-Kotlin-orange?logo=kotlin&logoColor=white)  
+![Expo](https://img.shields.io/badge/Mobile-Expo-black?logo=expo&logoColor=white)  
+![Gradle](https://img.shields.io/badge/Build-Gradle-02303A?logo=gradle&logoColor=white)  
 
 ---
 
@@ -98,4 +107,4 @@ Soutik
 
 📜 License
 This project is open-source under the MIT License.
-See LICENSE for details.
+See LICENSE for details
