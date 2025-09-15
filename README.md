@@ -1,12 +1,5 @@
-# NAGAR-SEVA
+<img width="820" height="434" alt="image" src="https://github.com/user-attachments/assets/3fe8a90b-163d-4732-9d98-663d81089798" />
 
-Empowering Citizens, Accelerating Civic Change
-
-   
-
-Built with the tools and technologies:
-
------
 
 ## Table of Contents
 
