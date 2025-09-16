@@ -52,6 +52,7 @@ const auth = (req, res, next) => {
     req.user = decoded.user;
     next();
   } catch (err) {
+    console.error('JWT Error:', err.message);
     res.status(401).json({ message: 'Token is not valid' });
   }
 };
@@ -98,6 +99,18 @@ app.get('/api/districts/:districtId/wards', async (req, res) => {
     }
 });
 
+// Public departments endpoint for citizens
+app.get('/api/public/departments', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, name FROM departments ORDER BY name ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Failed to fetch departments:', err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Admin-only departments endpoint
 app.get('/api/departments', auth, adminAuth, async (req, res) => {
     try {
         const result = await pool.query('SELECT id, name FROM departments ORDER BY name ASC');
@@ -204,7 +217,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// NEW: State Admin Registration
+// State Admin Registration
 app.post('/api/auth/state-admin/register', async (req, res) => {
     const { name, email, password, secretKey } = req.body;
     if (secretKey !== process.env.STATE_ADMIN_SECRET_KEY) {
@@ -228,10 +241,9 @@ app.post('/api/auth/state-admin/register', async (req, res) => {
 //                      CITIZEN-FACING ROUTES
 // =================================================================
 
-// The new, simplified, and robust geo-lookup function
+// The geo-lookup function
 const getDistrictAndWard = async (lat, lng) => {
     try {
-        // This PostGIS query finds the single closest ward and its parent district
         const query = `
             SELECT
                 w.ward_no,
@@ -245,10 +257,10 @@ const getDistrictAndWard = async (lat, lng) => {
                 )
             LIMIT 1;
         `;
-        const result = await pool.query(query, [lng, lat]); // PostGIS uses (longitude, latitude)
+        const result = await pool.query(query, [lng, lat]);
 
         if (result.rows.length > 0) {
-            return result.rows[0]; // Returns { district_name: 'Dhanbad', ward_no: '25' }
+            return result.rows[0];
         } else {
             throw new Error('No wards found in the database to match against.');
         }
@@ -259,9 +271,21 @@ const getDistrictAndWard = async (lat, lng) => {
 };
 
 app.post('/api/reports', auth, reportLimiter, async (req, res) => {
+    console.log('Received report submission:', {
+        problem: req.body.problem,
+        has_description: !!req.body.description,
+        has_image_url: !!req.body.image_url,
+        latitude: req.body.latitude,
+        longitude: req.body.longitude,
+        user_uid: req.user.uid
+    });
+
     const { problem, description, image_url, latitude, longitude } = req.body;
     const { uid: citizen_uid } = req.user;
-    if (!problem || !latitude || !longitude) return res.status(400).json({ message: 'Problem, latitude, and longitude are required' });
+    
+    if (!problem || !latitude || !longitude) {
+        return res.status(400).json({ message: 'Problem, latitude, and longitude are required' });
+    }
     
     const client = await pool.connect();
     try {
@@ -272,6 +296,7 @@ app.post('/api/reports', auth, reportLimiter, async (req, res) => {
             `SELECT id FROM merged_reports WHERE problem = $1 AND district = $2 AND ward = $3 AND status IN ('submitted', 'in_progress')`,
             [problem, district_name, ward_no]
         );
+        
         let mergedReportId;
         if (existingReportResult.rows.length > 0) {
             mergedReportId = existingReportResult.rows[0].id;
@@ -283,16 +308,23 @@ app.post('/api/reports', auth, reportLimiter, async (req, res) => {
             );
             mergedReportId = newMergedReportResult.rows[0].id;
         }
+        
         await client.query(
             'INSERT INTO all_reports (uid, problem, description, image_url, district, ward) VALUES ($1, $2, $3, $4, $5, $6)',
             [citizen_uid, problem, description, image_url, district_name, ward_no]
         );
+        
         await client.query('COMMIT');
-        res.status(201).json({ message: 'Report submitted successfully.', merged_report_id: mergedReportId, location: { district: district_name, ward: ward_no } });
+        
+        res.status(201).json({ 
+            message: 'Report submitted successfully.', 
+            merged_report_id: mergedReportId, 
+            location: { district: district_name, ward: ward_no } 
+        });
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        console.error('Report submission error:', err.message);
+        res.status(500).json({ error: 'Failed to submit report', message: err.message });
     } finally {
         client.release();
     }
@@ -321,7 +353,6 @@ app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
     if (!district_name) return res.status(403).json({ message: 'Admin is not associated with a district.' });
     
     try {
-        // THIS IS THE CORRECTED QUERY
         const result = await pool.query(`
             SELECT 
                 mr.*, 
@@ -330,13 +361,10 @@ app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
                 w.long as longitude
             FROM 
                 merged_reports mr 
-            -- First, join to districts to get the district_id for filtering
             JOIN 
                 districts dt ON mr.district = dt.name
-            -- Now, LEFT JOIN to wards using both ward_no and the correct district_id
             LEFT JOIN 
                 wards w ON mr.ward = w.ward_no AND w.district_id = dt.id
-            -- Finally, LEFT JOIN to departments
             LEFT JOIN 
                 departments d ON mr.department_id = d.id 
             WHERE 
@@ -397,9 +425,8 @@ app.get('/api/state-admin/escalated-reports', auth, stateAdminAuth, async (req, 
             AND mr.status != 'resolved'
             ORDER BY mr.nos DESC, mr.created_at ASC
         `);
-        // Map district and ward names for the frontend
+        
         const reportsWithNames = await Promise.all(result.rows.map(async (report) => {
-            // This is a simplified lookup; a real app might optimize this
             const districtRes = await pool.query('SELECT name FROM districts WHERE name = $1', [report.district]);
             const wardRes = await pool.query('SELECT ward_no FROM wards WHERE ward_no = $1 AND district_id = (SELECT id FROM districts WHERE name = $2)', [report.ward, report.district]);
             return {
@@ -415,13 +442,12 @@ app.get('/api/state-admin/escalated-reports', auth, stateAdminAuth, async (req, 
     }
 });
 
+// =================================================================
+//                      DEBUG ENDPOINTS
+// =================================================================
 
-//debug
 app.get('/api/debug', async (req, res) => {
   try {
-    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-    console.log('DATABASE_URL format check:', process.env.DATABASE_URL ? 'postgresql://' + process.env.DATABASE_URL.split('://')[1].split('@')[1] : 'N/A');
-    
     const result = await pool.query('SELECT NOW() as current_time');
     res.json({ 
       status: 'Database connected', 
@@ -432,11 +458,7 @@ app.get('/api/debug', async (req, res) => {
     console.error('Full database error:', {
       name: err.name,
       message: err.message,
-      code: err.code,
-      errno: err.errno,
-      syscall: err.syscall,
-      hostname: err.hostname,
-      stack: err.stack
+      code: err.code
     });
     
     res.status(500).json({ 
@@ -448,10 +470,18 @@ app.get('/api/debug', async (req, res) => {
     });
   }
 });
+
+app.get('/api/debug-auth', auth, (req, res) => {
+  res.json({ 
+    message: 'Token is valid', 
+    user: req.user,
+    token_decoded: true 
+  });
+});
+
 // =================================================================
 //                      START SERVER
 // =================================================================
 app.listen(PORT, () => {
-  console.log(`🚀 Server listening on http://localhost:${PORT}`);
+  console.log(`Server listening on http://localhost:${PORT}`);
 });
-
