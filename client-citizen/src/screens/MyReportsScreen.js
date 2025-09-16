@@ -84,8 +84,7 @@ const MyReportsScreen = () => {
       });
       setReports(response.data);
     } catch (e) {
-      console.error("Failed to fetch reports:", e);
-      setError("Could not load your reports. Please try again later.");
+      setError("No Reports");
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +138,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: 'bold', color: '#0D47A1', textAlign: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
   infoText: { fontSize: 16, color: '#555' },
-  errorText: { fontSize: 16, color: '#D32F2F' },
+  errorText: { fontSize: 16, color: '#000000ff' },
   listContainer: { padding: 15 },
   // Card Styles
   card: {

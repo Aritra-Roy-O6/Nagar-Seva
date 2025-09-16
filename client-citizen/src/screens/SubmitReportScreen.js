@@ -9,8 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { AuthContext } from '../context/AuthContext';
 
 // --- API Configuration ---
-const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"; // Replace with your actual key
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_KEY = "AIzaSyBv93gC2KbtyHh_LOV_3ly8g0bU142sOmo";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 const BACKEND_URL = "https://nagar-seva-1.onrender.com";
 
 const departments = [
@@ -33,6 +33,8 @@ const ComplaintScreen = ({ navigation }) => {
   const [problemKeyword, setProblemKeyword] = useState('');
   const [assignedDepartment, setAssignedDepartment] = useState('');
   const [departmentId, setDepartmentId] = useState(null);
+  const [manualLatitude, setManualLatitude] = useState('');
+  const [manualLongitude, setManualLongitude] = useState('');
 
   // --- Core Functions (Permissions, Location, Image Picking) ---
   
@@ -79,6 +81,9 @@ const ComplaintScreen = ({ navigation }) => {
         }
     }
     setLocation(locationData);
+    // Reset manual inputs when a new image is processed
+    setManualLatitude('');
+    setManualLongitude('');
   };
 
   const handleChoosePhoto = async () => {
@@ -102,7 +107,7 @@ const ComplaintScreen = ({ navigation }) => {
 
   // --- API Functions (Backend, Gemini, Cloudinary) ---
 
-  const getDepartmentId = async (departmentName) => { /* ... Functionality is the same ... */ 
+  const getDepartmentId = async (departmentName) => {
     try {
         const response = await fetch(`${BACKEND_URL}/api/departments`, {
             headers: { 'Authorization': `Bearer ${userToken}` },
@@ -119,7 +124,7 @@ const ComplaintScreen = ({ navigation }) => {
     }
   };
 
-  const analyzeDescription = async () => { /* ... Functionality is the same ... */ 
+  const analyzeDescription = async () => {
     if (!description || description.length < 15) {
       Alert.alert("Invalid Input", "Please provide a more detailed description (at least 15 characters).");
       return;
@@ -161,12 +166,12 @@ const ComplaintScreen = ({ navigation }) => {
     }
   };
 
-  const uploadImageToCloudinary = async (imageUri) => { /* ... Functionality is the same, but should be filled with real credentials ... */ 
+  const uploadImageToCloudinary = async (imageUri) => {
     const formData = new FormData();
     formData.append('file', { uri: imageUri, type: 'image/jpeg', name: 'complaint.jpg' });
-    formData.append('upload_preset', 'YOUR_UPLOAD_PRESET'); // IMPORTANT: Replace
+    formData.append('upload_preset', 'hexsane'); 
     try {
-        const response = await fetch('https://api.cloudinary.com/v1_1/YOUR_CLOUD_NAME/image/upload', { // IMPORTANT: Replace
+        const response = await fetch('https://api.cloudinary.com/v1_1/de7v2t5uf/image/upload', {
             method: 'POST', body: formData,
         });
         const data = await response.json();
@@ -179,17 +184,38 @@ const ComplaintScreen = ({ navigation }) => {
     }
   };
 
-  const handleSubmit = async () => { /* ... Functionality is the same ... */ 
-    if (!problemKeyword || !image || !location) {
-        Alert.alert("Incomplete Complaint", "Please analyze the description and add a photo with location before submitting.");
+  const handleSubmit = async () => {
+    // Check for all required fields
+    if (!problemKeyword || !image) {
+        Alert.alert("Incomplete Complaint", "Please analyze the description and add a photo before submitting.");
         return;
     }
+
+    // Determine the latitude and longitude to use
+    let submitLatitude, submitLongitude;
+    if (manualLatitude && manualLongitude) {
+      // If manual inputs are provided, use them
+      submitLatitude = parseFloat(manualLatitude);
+      submitLongitude = parseFloat(manualLongitude);
+      console.log("Using manual location inputs.");
+    } else if (location) {
+      // Otherwise, use the location from the image/GPS
+      submitLatitude = location.latitude;
+      submitLongitude = location.longitude;
+      console.log("Using location from image/GPS.");
+    } else {
+      // If no location data is available, stop submission
+      Alert.alert("Location Missing", "Please provide location data either by taking a photo with GPS enabled, or by entering it manually.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
         const imageUrl = await uploadImageToCloudinary(image.uri);
         const payload = {
             problem: problemKeyword, description, image: imageUrl,
-            latitude: location.latitude, longitude: location.longitude,
+            latitude: submitLatitude,
+            longitude: submitLongitude,
             dept: departmentId,
         };
         const response = await fetch(`${BACKEND_URL}/api/reports`, {
@@ -244,12 +270,12 @@ const ComplaintScreen = ({ navigation }) => {
                 style={[styles.button, styles.analyzeButton, (isAnalyzing || description.length < 15) && styles.buttonDisabled]}
                 onPress={analyzeDescription}
                 disabled={isAnalyzing || description.length < 15}>
-                {isAnalyzing ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}> Analyze with AI</Text>}
+                {isAnalyzing ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Analyze with AI</Text>}
             </TouchableOpacity>
             {problemKeyword ? (
                 <View style={styles.resultContainer}>
-                    <Text style={styles.resultText}> Keyword: <Text style={{fontWeight: 'normal'}}>{problemKeyword}</Text></Text>
-                    <Text style={styles.resultText}> Department: <Text style={{fontWeight: 'normal'}}>{assignedDepartment}</Text></Text>
+                    <Text style={styles.resultText}>Keyword: <Text style={{fontWeight: 'normal'}}>{problemKeyword}</Text></Text>
+                    <Text style={styles.resultText}>Department: <Text style={{fontWeight: 'normal'}}>{assignedDepartment}</Text></Text>
                 </View>
             ) : null}
         </View>
@@ -262,7 +288,7 @@ const ComplaintScreen = ({ navigation }) => {
                     <Text style={styles.buttonText}>Upload</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.button, styles.imageButton]} onPress={handleTakePhoto}>
-                    <Text style={styles.buttonText}> Take Photo</Text>
+                    <Text style={styles.buttonText}>Take Photo</Text>
                 </TouchableOpacity>
             </View>
             {image && (
@@ -270,11 +296,32 @@ const ComplaintScreen = ({ navigation }) => {
                     <Image source={{ uri: image.uri }} style={styles.imagePreview} />
                     {location && (
                         <Text style={styles.locationText}>
-                            📍 Location Captured: Lat: {location.latitude.toFixed(4)}, Lon: {location.longitude.toFixed(4)}
+                            📍 Geo-tag from Photo: Lat: {location.latitude.toFixed(4)}, Lon: {location.longitude.toFixed(4)}
                         </Text>
                     )}
                 </View>
             )}
+
+            {/* Manual Location Input */}
+            <Text style={[styles.label, { marginTop: 15 }]}>Or, Enter Manually</Text>
+            <View style={styles.manualLocationContainer}>
+                <TextInput
+                    style={styles.locationInput}
+                    placeholder="Latitude"
+                    placeholderTextColor={colors.textSecondary}
+                    value={manualLatitude}
+                    onChangeText={setManualLatitude}
+                    keyboardType="numeric"
+                />
+                <TextInput
+                    style={styles.locationInput}
+                    placeholder="Longitude"
+                    placeholderTextColor={colors.textSecondary}
+                    value={manualLongitude}
+                    onChangeText={setManualLongitude}
+                    keyboardType="numeric"
+                />
+            </View>
         </View>
         
         {/* Step 3: Submission */}
@@ -282,7 +329,7 @@ const ComplaintScreen = ({ navigation }) => {
             style={[styles.button, styles.submitButton, (isSubmitting || !problemKeyword || !image) && styles.buttonDisabled]}
             onPress={handleSubmit}
             disabled={isSubmitting || !problemKeyword || !image}>
-            {isSubmitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}> Submit Complaint</Text>}
+            {isSubmitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Submit Complaint</Text>}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -291,9 +338,9 @@ const ComplaintScreen = ({ navigation }) => {
 
 // --- Styles ---
 const colors = {
-  primary: '#1f6d3dff', // Deep Navy Blue
-  accent: '#FF9800', // Saffron/Orange Accent
-  secondary: '#26A69A', // Teal
+  primary: '#1f6d3dff',
+  accent: '#FF9800',
+  secondary: '#26A69A',
   background: '#f0f4f7',
   textPrimary: '#212121',
   textSecondary: '#757575',
@@ -422,6 +469,20 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: colors.textSecondary,
     fontSize: 12,
+  },
+  manualLocationContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  locationInput: {
+    flex: 1,
+    height: 50,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    borderColor: colors.border,
+    borderWidth: 1,
   },
 });
 
