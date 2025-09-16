@@ -18,17 +18,17 @@
 ---
 
 ## 📑 Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [Getting Started](#getting-started)
+- [Overview](#🏙️overview)
+- [Features](#✨features)
+- [Getting Started](#🚀Getting-Started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
 - [Testing](#testing)
-- [Project Structure](#project-structure)
-- [Screenshots & Demo](#screenshots--demo)
-- [Contributors](#contributors)
-- [License](#license)
+- [Project Structure](#📂Project-Structure)
+- [Screenshots & Demo](#🖼️screenshots--demo)
+- [Contributors](#👥Contributors)
+- [License](#📜License)
 
 ---
 
@@ -77,6 +77,8 @@ npm test
 
 # Backend tests
 gradle test
+
+```
 📂 Project Structure
 graphql
 Copy code
