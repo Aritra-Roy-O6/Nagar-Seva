@@ -1,14 +1,17 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React from 'react';
+import { createContext, useState, useEffect } from 'react';
+import apiClient from '../api/client'; // Ensure your API client is correctly imported
 
-// Storage abstraction: works in both web (localStorage) and React Native (AsyncStorage)
+// Storage abstraction for both web and React Native
 let storage;
 try {
   storage = require('@react-native-async-storage/async-storage').default;
 } catch (err) {
+  // Fallback for web or other environments if needed
   storage = {
-    getItem: async (key) => Promise.resolve(localStorage.getItem(key)),
+    getItem: async key => Promise.resolve(localStorage.getItem(key)),
     setItem: async (key, value) => Promise.resolve(localStorage.setItem(key, value)),
-    removeItem: async (key) => Promise.resolve(localStorage.removeItem(key)),
+    removeItem: async key => Promise.resolve(localStorage.removeItem(key)),
   };
 }
 
@@ -16,23 +19,23 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [userToken, setUserToken] = useState(null);
-  const [userRole, setUserRole] = useState("guest");
+  const [userRole, setUserRole] = useState('guest');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check stored token at app start
+  // Check for a stored token when the app starts
   const isUserLoggedIn = async () => {
     try {
       setIsLoading(true);
       const token = await storage.getItem('userToken');
       if (token) {
         setUserToken(token);
-        setUserRole("citizen");
+        setUserRole('citizen'); // Assuming only citizens use this app
       } else {
-        setUserRole("guest");
+        setUserRole('guest');
       }
     } catch (e) {
-      console.log("Error checking for saved token:", e);
-      setUserRole("guest");
+      console.error('Error checking for saved token:', e);
+      setUserRole('guest');
     } finally {
       setIsLoading(false);
     }
@@ -44,38 +47,44 @@ export const AuthProvider = ({ children }) => {
 
   const authContext = {
     /**
-     * Fake sign-in → accepts any phone/password
+     * Connects to the backend to sign in the user.
      */
-    signIn: async (phone, password, userType = "citizen") => {
-      try {
-        // Instead of calling API, just generate a fake token
-        const fakeToken = "token_" + new Date().getTime();
-        await storage.setItem("userToken", fakeToken);
-        setUserToken(fakeToken);
-        setUserRole(userType);
-      } catch (e) {
-        console.log("Login error:", e);
-      }
+    signIn: async (phone, password) => {
+      // The 'signIn' function now makes a POST request to the `/api/auth/login` endpoint.
+      const response = await apiClient.post('/auth/login', {
+        identifier: phone,
+        password: password,
+        userType: 'citizen',
+      });
+
+      const { token } = response.data;
+      await storage.setItem('userToken', token);
+      setUserToken(token);
+      setUserRole('citizen');
     },
 
     /**
-     * Register → optional (kept here but not used since login is fake)
+     * Connects to the backend to register a new user.
      */
     register: async (fullName, phone, password) => {
-      console.log("Fake register successful for:", fullName, phone);
-      return true;
+      // Makes a POST request to the `/api/auth/citizen/register` endpoint.
+      await apiClient.post('/auth/citizen/register', {
+        name: fullName,
+        phone_no: phone,
+        password: password,
+      });
     },
 
     /**
-     * Sign-out → back to guest
+     * Signs the user out by removing the token.
      */
     signOut: async () => {
       try {
-        await storage.removeItem("userToken");
+        await storage.removeItem('userToken');
         setUserToken(null);
-        setUserRole("guest");
+        setUserRole('guest');
       } catch (e) {
-        console.log("Error signing out:", e);
+        console.error('Error signing out:', e);
       }
     },
 
@@ -84,9 +93,5 @@ export const AuthProvider = ({ children }) => {
     isLoading,
   };
 
-  return (
-    <AuthContext.Provider value={authContext}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={authContext}>{children}</AuthContext.Provider>;
 };
