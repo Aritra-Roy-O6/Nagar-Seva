@@ -129,7 +129,7 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
                 </Row>
                 <hr />
                 <h5>Details</h5>
-                <p><strong>Description:</strong> {report.description || 'No description provided.'}</p>
+                
                 <p><strong>Current Status:</strong> <Badge bg={getStatusBadge(report.status)}>{report.status}</Badge></p>
                 <p><strong>Submitted At:</strong> {new Date(report.created_at).toLocaleString()}</p>
                 <p><strong>Department:</strong> {report.department_name || 'Unassigned'}</p>
