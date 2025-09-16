@@ -419,7 +419,9 @@ app.get('/api/state-admin/escalated-reports', auth, stateAdminAuth, async (req, 
 //debug
 app.get('/api/debug', async (req, res) => {
   try {
-    // Test basic database connection
+    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.log('DATABASE_URL format check:', process.env.DATABASE_URL ? 'postgresql://' + process.env.DATABASE_URL.split('://')[1].split('@')[1] : 'N/A');
+    
     const result = await pool.query('SELECT NOW() as current_time');
     res.json({ 
       status: 'Database connected', 
@@ -427,9 +429,21 @@ app.get('/api/debug', async (req, res) => {
       database_url_exists: !!process.env.DATABASE_URL
     });
   } catch (err) {
+    console.error('Full database error:', {
+      name: err.name,
+      message: err.message,
+      code: err.code,
+      errno: err.errno,
+      syscall: err.syscall,
+      hostname: err.hostname,
+      stack: err.stack
+    });
+    
     res.status(500).json({ 
       status: 'Database connection failed', 
-      error: err.message,
+      error: err.message || 'Unknown error',
+      code: err.code,
+      name: err.name,
       database_url_exists: !!process.env.DATABASE_URL
     });
   }
