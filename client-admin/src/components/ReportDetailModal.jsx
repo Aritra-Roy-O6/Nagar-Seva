@@ -5,7 +5,6 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import apiClient from '../api/client';
 
-// Using the mentor's reliable icon configuration
 const DefaultIcon = L.icon({
     iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
     iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
@@ -19,12 +18,11 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
     const [status, setStatus] = useState('');
-    const [departmentId, setDepartmentId] = useState(''); // Corrected syntax
+    const [departmentId, setDepartmentId] = useState('');
     const [departments, setDepartments] = useState([]);
     const [updateError, setUpdateError] = useState('');
     const mapRef = useRef(null);
 
-    // Effect to fetch the list of departments
     useEffect(() => {
         const fetchDepartments = async () => {
             try {
@@ -34,10 +32,11 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
                 console.error("Failed to fetch departments", error);
             }
         };
-        fetchDepartments();
-    }, []);
+        if (show) {
+            fetchDepartments();
+        }
+    }, [show]);
 
-    // Effect to update local state when a new report is passed in
     useEffect(() => {
         if (report) {
             setStatus(report.status || '');
@@ -46,31 +45,36 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
         }
     }, [report]);
 
-    // The definitive fix for resizing the map inside the modal
     const handleMapResize = () => {
         setTimeout(() => {
             if (mapRef.current) {
                 mapRef.current.invalidateSize();
             }
-        }, 100); // A small delay is necessary for the modal animation
+        }, 100);
     };
 
-    // Data validation check
-    if (!report) {
-        return null;
-    }
-    const hasValidCoordinates = report && report.location && Array.isArray(report.location.coordinates) && report.location.coordinates.length >= 2;
+    if (!report) return null;
+
+    const hasValidCoordinates = report.latitude && report.longitude;
 
     const handleUpdate = async () => {
         setUpdateError('');
         try {
             const payload = {
                 status,
-                department_id: departmentId ? parseInt(departmentId) : null,
+                department_id: departmentId ? parseInt(departmentId, 10) : null,
             };
             const response = await apiClient.put(`/admin/reports/${report.id}`, payload);
-            onUpdate(response.data); // Update the parent component's state
-            onClose(); // Close the modal
+            
+            // Construct a complete updated report object for the parent
+            const updatedReport = {
+                ...report,
+                ...response.data,
+                department_name: departments.find(d => d.id === parseInt(departmentId, 10))?.name || 'Unassigned'
+            };
+
+            onUpdate(report.id, updatedReport);
+            onClose();
         } catch (error) {
             console.error("Failed to update report", error);
             setUpdateError(error.response?.data?.message || "Failed to update report.");
@@ -86,12 +90,10 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
         }
     };
 
-    const departmentName = departments.find(d => d.id === report.department_id)?.name || 'Unassigned';
-
     return (
         <Modal show={show} onHide={onClose} size="xl" centered onEntered={handleMapResize}>
             <Modal.Header closeButton>
-                <Modal.Title>Report Details - {report.problem_type}</Modal.Title>
+                <Modal.Title>Report Details - {report.problem}</Modal.Title>
             </Modal.Header>
             <Modal.Body style={{ maxHeight: 'calc(100vh - 220px)', overflowY: 'auto' }}>
                 <Row>
@@ -100,26 +102,29 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
                         <div style={{ height: '300px', width: '100%' }}>
                             {hasValidCoordinates ? (
                                 <MapContainer 
-                                    center={[report.location.coordinates[1], report.location.coordinates[0]]} 
+                                    center={[report.latitude, report.longitude]} 
                                     zoom={15} 
                                     style={{ height: '100%', width: '100%' }}
                                     ref={mapRef}
                                 >
                                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                                    <Marker position={[report.location.coordinates[1], report.location.coordinates[0]]}>
-                                        <Popup>{report.problem_type}</Popup>
+                                    <Marker position={[report.latitude, report.longitude]}>
+                                        <Popup>{report.problem}</Popup>
                                     </Marker>
                                 </MapContainer>
                             ) : (
                                 <div className="d-flex align-items-center justify-content-center h-100 bg-light text-muted">
-                                    No valid location data available.
+                                    No location data available.
                                 </div>
                             )}
                         </div>
                     </Col>
                     <Col md={6}>
                         <h5>Submitted Image</h5>
-                        <img src={report.image_url} alt={report.problem_type} className="img-fluid rounded" style={{ maxHeight: '300px', objectFit: 'cover' }} />
+                        {report.image_url ? 
+                            <img src={report.image_url} alt={report.problem} className="img-fluid rounded" style={{ maxHeight: '300px', objectFit: 'cover' }} /> :
+                            <p>No image submitted.</p>
+                        }
                     </Col>
                 </Row>
                 <hr />
@@ -127,8 +132,8 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
                 <p><strong>Description:</strong> {report.description || 'No description provided.'}</p>
                 <p><strong>Current Status:</strong> <Badge bg={getStatusBadge(report.status)}>{report.status}</Badge></p>
                 <p><strong>Submitted At:</strong> {new Date(report.created_at).toLocaleString()}</p>
-                <p><strong>Department:</strong> {departmentName}</p>
-                <p><strong>Ward No.:</strong> {report.ward_no || 'N/A'}</p>
+                <p><strong>Department:</strong> {report.department_name || 'Unassigned'}</p>
+                <p><strong>Ward No.:</strong> {report.ward || 'N/A'}</p>
                 <p><strong>Number of Submissions:</strong> {report.nos || 1}</p>
             </Modal.Body>
             <Modal.Footer>
@@ -159,12 +164,8 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
                     </div>
                     <div className="d-flex align-items-center">
                         {updateError && <span className="text-danger me-3">{updateError}</span>}
-                        <Button variant="secondary" onClick={onClose} className="me-2">
-                            Close
-                        </Button>
-                        <Button variant="primary" onClick={handleUpdate}>
-                            Save Changes
-                        </Button>
+                        <Button variant="secondary" onClick={onClose} className="me-2">Close</Button>
+                        <Button variant="primary" onClick={handleUpdate}>Save Changes</Button>
                     </div>
                 </div>
             </Modal.Footer>
@@ -173,4 +174,3 @@ const ReportDetailModal = ({ report, show, onClose, onUpdate }) => {
 };
 
 export default ReportDetailModal;
-

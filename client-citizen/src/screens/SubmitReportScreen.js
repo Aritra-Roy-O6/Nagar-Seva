@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-
 import { AuthContext } from '../context/AuthContext';
 
 // --- API Configuration ---
@@ -38,7 +37,6 @@ const ComplaintScreen = ({ navigation }) => {
   // --- Core Functions (Permissions, Location, Image Picking) ---
   
   const requestPermissions = async () => {
-    // Consolidated permission requests for a smoother user experience
     const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
     if (locationStatus !== 'granted') {
       Alert.alert('Permission Denied', 'Location permission is required to tag complaint locations.');
@@ -64,7 +62,6 @@ const ComplaintScreen = ({ navigation }) => {
     const asset = pickerResult.assets[0];
     setImage({ uri: asset.uri });
     
-    // Prioritize EXIF data, fallback to current location
     let locationData = null;
     if (asset.exif && asset.exif.GPSLatitude && asset.exif.GPSLongitude) {
         locationData = { latitude: asset.exif.GPSLatitude, longitude: asset.exif.GPSLongitude };
@@ -80,7 +77,6 @@ const ComplaintScreen = ({ navigation }) => {
         }
     }
     setLocation(locationData);
-    // Reset manual inputs when a new image is processed
     setManualLatitude('');
     setManualLongitude('');
   };
@@ -112,7 +108,6 @@ const ComplaintScreen = ({ navigation }) => {
       return;
     }
     setIsAnalyzing(true);
-    // Reset previous results
     setProblemKeyword('');
     setAssignedDepartment('');
     
@@ -166,48 +161,34 @@ const ComplaintScreen = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    // Check for all required fields
-    if (!problemKeyword || !image) {
-        Alert.alert("Incomplete Complaint", "Please analyze the description and add a photo before submitting.");
+    if (!problemKeyword || !assignedDepartment || !image) {
+        Alert.alert("Incomplete Complaint", "Please analyze the description, assign a department, and add a photo before submitting.");
         return;
     }
 
-    // Determine the latitude and longitude to use
     let submitLatitude, submitLongitude;
     if (manualLatitude && manualLongitude) {
-      // If manual inputs are provided, use them
       submitLatitude = parseFloat(manualLatitude);
       submitLongitude = parseFloat(manualLongitude);
-      console.log("Using manual location inputs.");
     } else if (location) {
-      // Otherwise, use the location from the image/GPS
       submitLatitude = location.latitude;
       submitLongitude = location.longitude;
-      console.log("Using location from image/GPS.");
     } else {
-      // If no location data is available, stop submission
       Alert.alert("Location Missing", "Please provide location data either by taking a photo with GPS enabled, or by entering it manually.");
       return;
     }
 
-    console.log('Submitting report with:', {
-      problem: problemKeyword,
-      description: description,
-      latitude: submitLatitude,
-      longitude: submitLongitude,
-      userToken: userToken ? 'Token exists' : 'No token'
-    });
-
     setIsSubmitting(true);
     try {
         const imageUrl = await uploadImageToCloudinary(image.uri);
+        
         const payload = {
             problem: problemKeyword, 
             description, 
-            image_url: imageUrl,  // Fixed: Changed from "image" to "image_url"
+            image_url: imageUrl,
             latitude: submitLatitude,
-            longitude: submitLongitude
-            // Removed dept field since server doesn't use it
+            longitude: submitLongitude,
+            department: assignedDepartment // Sending the department name to the server
         };
 
         console.log('Final payload:', payload);
@@ -229,7 +210,7 @@ const ComplaintScreen = ({ navigation }) => {
                 [{ text: 'OK', onPress: () => navigation.goBack() }]
             );
         } else {
-            throw new Error(result.message || result.error || 'Failed to submit report');
+            throw new Error(result.message || 'Failed to submit report');
         }
     } catch (error) {
         console.error("Submission Error:", error);
@@ -239,25 +220,18 @@ const ComplaintScreen = ({ navigation }) => {
     }
   };
 
-  // --- Render Method ---
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
       <View style={styles.header}>
-        <TouchableOpacity>
-            <Text style={styles.backButtonText}></Text>
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Register Complaint</Text>
-        <View style={{width: 40}} />{/* Spacer to center title */}
       </View>
-
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Step 1: Description */}
         <View style={styles.card}>
             <Text style={styles.label}>1. Describe the Issue</Text>
             <TextInput
                 style={styles.inputLarge}
-                placeholder="e.g., 'Large pothole near the main bus stop is causing traffic problems...'"
+                placeholder="e.g., 'Large pothole near the main bus stop...'"
                 placeholderTextColor={colors.textSecondary}
                 value={description}
                 onChangeText={setDescription}
@@ -277,7 +251,6 @@ const ComplaintScreen = ({ navigation }) => {
             ) : null}
         </View>
 
-        {/* Step 2: Photo & Location */}
         <View style={styles.card}>
             <Text style={styles.label}>2. Add Photo & Location</Text>
             <View style={styles.imagePickerContainer}>
@@ -299,29 +272,13 @@ const ComplaintScreen = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Manual Location Input */}
             <Text style={[styles.label, { marginTop: 15 }]}>Or, Enter Manually</Text>
             <View style={styles.manualLocationContainer}>
-                <TextInput
-                    style={styles.locationInput}
-                    placeholder="Latitude"
-                    placeholderTextColor={colors.textSecondary}
-                    value={manualLatitude}
-                    onChangeText={setManualLatitude}
-                    keyboardType="numeric"
-                />
-                <TextInput
-                    style={styles.locationInput}
-                    placeholder="Longitude"
-                    placeholderTextColor={colors.textSecondary}
-                    value={manualLongitude}
-                    onChangeText={setManualLongitude}
-                    keyboardType="numeric"
-                />
+                <TextInput style={styles.locationInput} placeholder="Latitude" value={manualLatitude} onChangeText={setManualLatitude} keyboardType="numeric" />
+                <TextInput style={styles.locationInput} placeholder="Longitude" value={manualLongitude} onChangeText={setManualLongitude} keyboardType="numeric" />
             </View>
         </View>
         
-        {/* Step 3: Submission */}
         <TouchableOpacity
             style={[styles.button, styles.submitButton, (isSubmitting || !problemKeyword || !image) && styles.buttonDisabled]}
             onPress={handleSubmit}
@@ -348,139 +305,27 @@ const colors = {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
-  header: {
-    backgroundColor: colors.primary,
-    paddingVertical: 15,
-    paddingHorizontal: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: colors.white,
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButtonText: {
-    color: colors.white,
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  container: { padding: 15, paddingBottom: 50 },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 15,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-  },
-  label: { 
-    fontSize: 18, 
-    fontWeight: '600', 
-    color: colors.textPrimary, 
-    marginBottom: 10 
-  },
-  inputLarge: {
-    height: 120,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: 15,
-    fontSize: 16,
-    textAlignVertical: 'top',
-    borderColor: colors.border,
-    borderWidth: 1,
-    marginBottom: 15,
-  },
-  button: {
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  buttonText: { 
-    color: colors.white, 
-    fontSize: 16, 
-    fontWeight: 'bold' 
-  },
-  analyzeButton: {
-    backgroundColor: colors.accent,
-  },
-  imageButton: {
-    backgroundColor: colors.secondary,
-    flex: 1,
-  },
-  submitButton: {
-    backgroundColor: colors.primary,
-    marginTop: 10,
-  },
-  buttonDisabled: {
-    backgroundColor: '#BDBDBD',
-    elevation: 0,
-  },
-  imagePickerContainer: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  resultContainer: {
-    marginTop: 15,
-    padding: 10,
-    backgroundColor: colors.successBackground,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.success,
-  },
-  resultText: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    fontWeight: 'bold',
-  },
-  imagePreviewContainer: {
-    marginTop: 15,
-    alignItems: 'center',
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 10,
-    backgroundColor: colors.border,
-  },
-  locationText: {
-    fontStyle: 'italic',
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  manualLocationContainer: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  locationInput: {
-    flex: 1,
-    height: 50,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    borderColor: colors.border,
-    borderWidth: 1,
-  },
+    safeArea: { flex: 1, backgroundColor: colors.background },
+    header: { backgroundColor: colors.primary, paddingVertical: 15, paddingHorizontal: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    headerTitle: { color: colors.white, fontSize: 20, fontWeight: 'bold' },
+    container: { padding: 15, paddingBottom: 50 },
+    card: { backgroundColor: colors.white, borderRadius: 12, padding: 15, marginBottom: 15, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6 },
+    label: { fontSize: 18, fontWeight: '600', color: colors.textPrimary, marginBottom: 10 },
+    inputLarge: { height: 120, backgroundColor: colors.background, borderRadius: 8, padding: 15, fontSize: 16, textAlignVertical: 'top', borderColor: colors.border, borderWidth: 1, marginBottom: 15 },
+    button: { paddingVertical: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+    buttonText: { color: colors.white, fontSize: 16, fontWeight: 'bold' },
+    analyzeButton: { backgroundColor: colors.accent },
+    imageButton: { backgroundColor: colors.secondary, flex: 1 },
+    submitButton: { backgroundColor: colors.primary, marginTop: 10 },
+    buttonDisabled: { backgroundColor: '#BDBDBD', elevation: 0 },
+    imagePickerContainer: { flexDirection: 'row', gap: 10 },
+    resultContainer: { marginTop: 15, padding: 10, backgroundColor: colors.successBackground, borderRadius: 8, borderLeftWidth: 4, borderLeftColor: colors.success },
+    resultText: { fontSize: 14, color: colors.textPrimary, fontWeight: 'bold' },
+    imagePreviewContainer: { marginTop: 15, alignItems: 'center' },
+    imagePreview: { width: '100%', height: 200, borderRadius: 8, marginBottom: 10, backgroundColor: colors.border },
+    locationText: { fontStyle: 'italic', color: colors.textSecondary, fontSize: 12 },
+    manualLocationContainer: { flexDirection: 'row', gap: 10 },
+    locationInput: { flex: 1, height: 50, backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 15, fontSize: 16, borderColor: colors.border, borderWidth: 1 },
 });
 
 export default ComplaintScreen;

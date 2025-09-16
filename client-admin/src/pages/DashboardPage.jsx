@@ -11,7 +11,6 @@ function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [departments, setDepartments] = useState([]);
 
-  // Memoized function to fetch reports to prevent unnecessary re-renders
   const fetchReports = useCallback(async () => {
     try {
       setLoading(true);
@@ -26,11 +25,9 @@ function DashboardPage() {
     }
   }, []);
 
-
-  // Fetch initial data on component mount
   useEffect(() => {
     const fetchInitialData = async () => {
-        await fetchReports(); // Fetch reports
+        await fetchReports();
         try {
             const deptsResponse = await apiClient.get('/departments');
             setDepartments(deptsResponse.data);
@@ -40,7 +37,7 @@ function DashboardPage() {
         }
     };
     fetchInitialData();
-  }, [fetchReports]); // Dependency on the memoized fetchReports
+  }, [fetchReports]);
 
   const handleOpenModal = (report) => {
     setSelectedReport(report);
@@ -52,20 +49,16 @@ function DashboardPage() {
     setSelectedReport(null);
   };
 
-  /**
-   * This function now re-fetches the reports after a successful update.
-   */
   const handleUpdateReport = async (reportId, updateData) => {
     try {
         await apiClient.put(`/admin/reports/${reportId}`, updateData);
-        handleCloseModal(); // Close the modal first
-        await fetchReports(); // **<<-- THE FIX IS HERE: Refetch all reports**
+        handleCloseModal();
+        await fetchReports(); 
     } catch (error) {
         console.error("Failed to update report:", error);
         setError("Failed to update report. Please try again.");
     }
   };
-
 
   if (loading) {
     return (
@@ -97,9 +90,7 @@ function DashboardPage() {
           <TableBody>
             {reports.map((report) => (
               <TableRow key={report.id}>
-                <TableCell component="th" scope="row">
-                  {report.problem}
-                </TableCell>
+                <TableCell component="th" scope="row">{report.problem}</TableCell>
                 <TableCell align="right">{report.district}</TableCell>
                 <TableCell align="right">{report.ward}</TableCell>
                 <TableCell align="right">{report.nos}</TableCell>
