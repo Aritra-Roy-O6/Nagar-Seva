@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const cloudinary = require('cloudinary').v2;
 const admin = require('firebase-admin');
-
+ 
 // --- Service Initialization ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -23,7 +23,7 @@ cloudinary.config({
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
-});
+}); 
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -204,6 +204,26 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// NEW: State Admin Registration
+app.post('/api/auth/state-admin/register', async (req, res) => {
+    const { name, email, password, secretKey } = req.body;
+    if (secretKey !== process.env.STATE_ADMIN_SECRET_KEY) {
+        return res.status(403).json({ message: 'Invalid State Secret Key.' });
+    }
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+        const newStateAdmin = await pool.query(
+            'INSERT INTO state_admins (name, email, password_hash) VALUES ($1, $2, $3) RETURNING uid, name, email',
+            [name, email, passwordHash]
+        );
+        res.status(201).json(newStateAdmin.rows[0]);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+});
+
 // =================================================================
 //                      CITIZEN-FACING ROUTES
 // =================================================================
@@ -367,19 +387,33 @@ app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
 app.get('/api/state-admin/escalated-reports', auth, stateAdminAuth, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT mr.*, d.name as department_name, mr.district as district_name, mr.ward as ward_no
+            SELECT 
+                mr.id, mr.problem, mr.district, mr.ward, mr.nos, mr.created_at,
+                d.name as department_name
             FROM merged_reports mr 
             LEFT JOIN departments d ON mr.department_id = d.id
-            WHERE mr.nos > 100 AND mr.created_at < NOW() - INTERVAL '4 months' AND mr.status != 'resolved'
+            WHERE mr.nos > 100 
+            AND mr.created_at < NOW() - INTERVAL '4 months' 
+            AND mr.status != 'resolved'
             ORDER BY mr.nos DESC, mr.created_at ASC
         `);
-        res.json(result.rows);
+        // Map district and ward names for the frontend
+        const reportsWithNames = await Promise.all(result.rows.map(async (report) => {
+            // This is a simplified lookup; a real app might optimize this
+            const districtRes = await pool.query('SELECT name FROM districts WHERE name = $1', [report.district]);
+            const wardRes = await pool.query('SELECT ward_no FROM wards WHERE ward_no = $1 AND district_id = (SELECT id FROM districts WHERE name = $2)', [report.ward, report.district]);
+            return {
+                ...report,
+                district_name: districtRes.rows[0]?.name || report.district,
+                ward_no: wardRes.rows[0]?.ward_no || report.ward,
+            };
+        }));
+        res.json(reportsWithNames);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
     }
 });
-
 // =================================================================
 //                      START SERVER
 // =================================================================
