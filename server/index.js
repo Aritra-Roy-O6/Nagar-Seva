@@ -414,6 +414,26 @@ app.get('/api/state-admin/escalated-reports', auth, stateAdminAuth, async (req, 
         res.status(500).send('Server error');
     }
 });
+
+
+//debug
+app.get('/api/debug', async (req, res) => {
+  try {
+    // Test basic database connection
+    const result = await pool.query('SELECT NOW() as current_time');
+    res.json({ 
+      status: 'Database connected', 
+      time: result.rows[0].current_time,
+      database_url_exists: !!process.env.DATABASE_URL
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      status: 'Database connection failed', 
+      error: err.message,
+      database_url_exists: !!process.env.DATABASE_URL
+    });
+  }
+});
 // =================================================================
 //                      START SERVER
 // =================================================================
