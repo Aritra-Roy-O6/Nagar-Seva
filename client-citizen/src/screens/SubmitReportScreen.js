@@ -32,7 +32,6 @@ const ComplaintScreen = ({ navigation }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [problemKeyword, setProblemKeyword] = useState('');
   const [assignedDepartment, setAssignedDepartment] = useState('');
-  const [departmentId, setDepartmentId] = useState(null);
   const [manualLatitude, setManualLatitude] = useState('');
   const [manualLongitude, setManualLongitude] = useState('');
 
@@ -107,23 +106,6 @@ const ComplaintScreen = ({ navigation }) => {
 
   // --- API Functions (Backend, Gemini, Cloudinary) ---
 
-  const getDepartmentId = async (departmentName) => {
-    try {
-        const response = await fetch(`${BACKEND_URL}/api/departments`, {
-            headers: { 'Authorization': `Bearer ${userToken}` },
-        });
-        if (response.ok) {
-            const depts = await response.json();
-            const dept = depts.find(d => d.name === departmentName);
-            return dept ? dept.id : 1;
-        }
-        return 1;
-    } catch (error) {
-        console.error('Error fetching departments:', error);
-        return 1;
-    }
-  };
-
   const analyzeDescription = async () => {
     if (!description || description.length < 15) {
       Alert.alert("Invalid Input", "Please provide a more detailed description (at least 15 characters).");
@@ -133,8 +115,9 @@ const ComplaintScreen = ({ navigation }) => {
     // Reset previous results
     setProblemKeyword('');
     setAssignedDepartment('');
-    setDepartmentId(null);
+    
     const prompt = `Analyze the following complaint description: "${description}". From this list of departments: [${departments.map(d => `"${d}"`).join(', ')}]. Respond in a valid JSON format only, like this: {"keyword": "A single, unique keyword summarizing the issue (e.g., 'Pothole', 'GarbageOverflow')", "department": "The single most relevant department from the list"}`;
+    
     try {
         const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
@@ -152,8 +135,6 @@ const ComplaintScreen = ({ navigation }) => {
         if (parsed.keyword && parsed.department && departments.includes(parsed.department)) {
             setProblemKeyword(parsed.keyword);
             setAssignedDepartment(parsed.department);
-            const deptId = await getDepartmentId(parsed.department);
-            setDepartmentId(deptId);
             Alert.alert("Analysis Complete", "Issue has been categorized successfully!");
         } else {
             throw new Error("API response missing keyword or department");
@@ -209,15 +190,28 @@ const ComplaintScreen = ({ navigation }) => {
       return;
     }
 
+    console.log('Submitting report with:', {
+      problem: problemKeyword,
+      description: description,
+      latitude: submitLatitude,
+      longitude: submitLongitude,
+      userToken: userToken ? 'Token exists' : 'No token'
+    });
+
     setIsSubmitting(true);
     try {
         const imageUrl = await uploadImageToCloudinary(image.uri);
         const payload = {
-            problem: problemKeyword, description, image: imageUrl,
+            problem: problemKeyword, 
+            description, 
+            image_url: imageUrl,  // Fixed: Changed from "image" to "image_url"
             latitude: submitLatitude,
-            longitude: submitLongitude,
-            dept: departmentId,
+            longitude: submitLongitude
+            // Removed dept field since server doesn't use it
         };
+
+        console.log('Final payload:', payload);
+
         const response = await fetch(`${BACKEND_URL}/api/reports`, {
             method: 'POST',
             headers: {
@@ -226,13 +220,16 @@ const ComplaintScreen = ({ navigation }) => {
             },
             body: JSON.stringify(payload)
         });
+        
         const result = await response.json();
+        console.log('Server response:', result);
+        
         if (response.ok) {
             Alert.alert("Submission Successful!", `Your report for '${problemKeyword}' has been submitted.`,
                 [{ text: 'OK', onPress: () => navigation.goBack() }]
             );
         } else {
-            throw new Error(result.message || 'Failed to submit report');
+            throw new Error(result.message || result.error || 'Failed to submit report');
         }
     } catch (error) {
         console.error("Submission Error:", error);
