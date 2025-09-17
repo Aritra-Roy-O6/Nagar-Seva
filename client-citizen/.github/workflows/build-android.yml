@@ -12,21 +12,21 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
         
     - name: Setup Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
         
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
+      uses: android-actions/setup-android@v3
       
     - name: Install dependencies
       run: npm install
@@ -34,12 +34,14 @@ jobs:
     - name: Build Android APK
       run: |
         npx expo install --fix
-        npx eas build --platform android --local --non-interactive --clear-cache
+        # ✅ Use the 'preview' profile and specify the output file
+        npx eas build --profile preview --platform android --local --non-interactive --output=./app-release.apk
         
     - name: Upload APK to Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: '**/*.apk'
+        # ✅ Point directly to the APK file we created
+        files: app-release.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

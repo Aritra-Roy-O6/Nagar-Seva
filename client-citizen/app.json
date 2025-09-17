@@ -21,20 +21,27 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.citizenapp.mobile"
+      "package": "com.citizenapp.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    
     "plugins": [
       [
-           "expo-image-picker",
-           {
-             "photosPermission": "The app accesses your photos to let you share them with your complaints.",
-             "cameraPermission": "The app accesses your camera to let you take photos for complaints."
-           }
-         ]
-    ]
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them with your complaints.",
+          "cameraPermission": "The app accesses your camera to let you take photos for complaints."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "458df376-755b-4892-ba9a-bcd7eb0c9fdd"
+      }
+    }
   }
 }
