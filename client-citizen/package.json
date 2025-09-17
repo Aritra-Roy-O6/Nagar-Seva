@@ -23,7 +23,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "@react-native-community/cli": "^20.0.2"
+    "@react-native-community/cli": "^20.0.2",
+    "eas-cli": "^16.19.3"
   },
   "private": true
 }
