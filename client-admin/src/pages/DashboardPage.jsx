@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Button, Box, CircularProgress, Alert } from '@mui/material';
+import { Container, Table, Button, Spinner, Alert } from 'react-bootstrap';
 import ReportDetailModal from '../components/ReportDetailModal';
 import apiClient from '../api/client';
 
@@ -9,7 +9,6 @@ function DashboardPage() {
   const [error, setError] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [departments, setDepartments] = useState([]);
 
   const fetchReports = useCallback(async () => {
     try {
@@ -26,17 +25,7 @@ function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-        await fetchReports();
-        try {
-            const deptsResponse = await apiClient.get('/departments');
-            setDepartments(deptsResponse.data);
-        } catch (err) {
-            setError('Failed to fetch departments.');
-            console.error(err);
-        }
-    };
-    fetchInitialData();
+    fetchReports();
   }, [fetchReports]);
 
   const handleOpenModal = (report) => {
@@ -62,57 +51,56 @@ function DashboardPage() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-        <CircularProgress />
-      </Box>
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
+        <Spinner animation="border" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Admin Dashboard
-      </Typography>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      <TableContainer component={Paper}>
-        <Table sx={{ minWidth: 650 }} aria-label="simple table">
-          <TableHead>
-            <TableRow>
-              <TableCell>Problem</TableCell>
-              <TableCell align="right">District</TableCell>
-              <TableCell align="right">Ward</TableCell>
-              <TableCell align="right">Reports Count</TableCell>
-              <TableCell align="right">Status</TableCell>
-              <TableCell align="right">Department</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {reports.map((report) => (
-              <TableRow key={report.id}>
-                <TableCell component="th" scope="row">{report.problem}</TableCell>
-                <TableCell align="right">{report.district}</TableCell>
-                <TableCell align="right">{report.ward}</TableCell>
-                <TableCell align="right">{report.nos}</TableCell>
-                <TableCell align="right">{report.status}</TableCell>
-                <TableCell align="right">{report.department_name || 'N/A'}</TableCell>
-                <TableCell align="right">
-                  <Button variant="contained" onClick={() => handleOpenModal(report)}>
-                    View
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+    <Container className="mt-4 mb-4">
+      <h1 className="mb-4">Admin Dashboard</h1>
+
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      <Table striped bordered hover responsive>
+        <thead>
+          <tr>
+            <th>Problem</th>
+            <th className="text-end">District</th>
+            <th className="text-end">Ward</th>
+            <th className="text-end">Reports Count</th>
+            <th className="text-end">Status</th>
+            <th className="text-end">Department</th>
+            <th className="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reports.map((report) => (
+            <tr key={report.id}>
+              <td>{report.problem}</td>
+              <td className="text-end">{report.district}</td>
+              <td className="text-end">{report.ward}</td>
+              <td className="text-end">{report.nos}</td>
+              <td className="text-end">{report.status}</td>
+              <td className="text-end">{report.department_name || 'N/A'}</td>
+              <td className="text-end">
+                <Button variant="primary" size="sm" onClick={() => handleOpenModal(report)}>
+                  View
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
 
       {selectedReport && (
         <ReportDetailModal
-          open={isModalOpen}
-          handleClose={handleCloseModal}
+          show={isModalOpen}
+          onClose={handleCloseModal}
           report={selectedReport}
-          departments={departments}
           onUpdate={handleUpdateReport}
         />
       )}
