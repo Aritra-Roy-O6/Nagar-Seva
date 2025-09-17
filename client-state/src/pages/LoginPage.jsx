@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { Form, Button, Container, Card, Alert, Spinner } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // MODIFIED: Imported Link
 import apiClient from '../api/client';
 import { AuthContext } from '../context/AuthContext';
 
@@ -8,7 +8,7 @@ const LoginPage = () => {
     const [formData, setFormData] = useState({
         identifier: '',
         password: '',
-        userType: 'admin', // Default to 'admin' (District Admin)
+        userType: 'state_admin', // MODIFIED: Hardcoded to 'state_admin'
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -28,8 +28,8 @@ const LoginPage = () => {
         try {
             const response = await apiClient.post('/auth/login', formData);
             const { token } = response.data;
-            login(token); // Use the login function from AuthContext
-            navigate('/'); // Redirect to the appropriate dashboard
+            login(token); 
+            navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
         } finally {
@@ -41,35 +41,11 @@ const LoginPage = () => {
         <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: '100vh' }}>
             <Card style={{ width: '400px' }} className="shadow-sm">
                 <Card.Body>
-                    <h3 className="text-center mb-4">Admin Portal Login</h3>
+                    <h3 className="text-center mb-4">State Admin Portal</h3> {/* MODIFIED: Title changed */}
                     {error && <Alert variant="danger">{error}</Alert>}
                     
                     <Form onSubmit={handleSubmit}>
-                        <Form.Group className="mb-3">
-                            <Form.Label><strong>Login As</strong></Form.Label>
-                            <div>
-                                <Form.Check
-                                    inline
-                                    type="radio"
-                                    label="District Admin"
-                                    name="userType"
-                                    value="admin"
-                                    id="userType-admin"
-                                    checked={formData.userType === 'admin'}
-                                    onChange={handleChange}
-                                />
-                                <Form.Check
-                                    inline
-                                    type="radio"
-                                    label="State Admin"
-                                    name="userType"
-                                    value="state_admin"
-                                    id="userType-state_admin"
-                                    checked={formData.userType === 'state_admin'}
-                                    onChange={handleChange}
-                                />
-                            </div>
-                        </Form.Group>
+                        {/* REMOVED: The radio button selection for user type has been removed */}
 
                         <Form.Group className="mb-3">
                             <Form.Label>Email Address</Form.Label>
@@ -106,6 +82,15 @@ const LoginPage = () => {
                             )}
                         </Button>
                     </Form>
+                    
+                    {/* ADDED: Link to the registration page */}
+                    <div className="text-center mt-3">
+                        <small className="text-muted">
+                            Need to create an account?{' '}
+                            <Link to="/register-state-admin">Register here</Link>
+                        </small>
+                    </div>
+
                 </Card.Body>
             </Card>
         </Container>
