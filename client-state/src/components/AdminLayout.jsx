@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Navbar, Nav, NavDropdown } from 'react-bootstrap';
@@ -16,8 +15,12 @@ const AdminLayout = ({ children }) => {
         <Navbar.Brand href="/">NagarSeva Admin</Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
-          <Nav className="ms-auto">
-            <Nav.Link as={NavLink} to="/" end>Dashboard</Nav.Link>
+          <Nav className="me-auto"> {/* MODIFIED: Changed ms-auto to me-auto */}
+            <Nav.Link as={NavLink} to="/" end>Escalated Reports</Nav.Link>
+            {/* ADDED: Link to the new Analytics Page */}
+            <Nav.Link as={NavLink} to="/analytics">Analytics</Nav.Link>
+          </Nav>
+          <Nav className="ms-auto"> {/* ADDED: New Nav for the dropdown */}
             <NavDropdown title="Admin" id="basic-nav-dropdown">
               <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
             </NavDropdown>
@@ -32,4 +35,3 @@ const AdminLayout = ({ children }) => {
 };
 
 export default AdminLayout;
-
