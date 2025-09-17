@@ -15,7 +15,8 @@ const DashboardPage = () => {
   const [wards, setWards] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(''); // Empty string means "All"
   const [selectedWard, setSelectedWard] = useState(''); // Empty string means "All"
-  const [sortByStatus, setSortByStatus] = useState(''); // NEW: Empty string means no specific sorting
+  const [sortByStatus, setSortByStatus] = useState(''); // Empty string means no specific sorting
+  const [sortByNOS, setSortByNOS] = useState(''); // NEW: Empty string means no NOS sorting
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -55,7 +56,7 @@ const DashboardPage = () => {
       return departmentMatch && wardMatch;
     });
 
-    // Then, sort by status if selected
+    // Sort by status if selected
     if (sortByStatus) {
       const statusPriority = {
         'submitted': 1,
@@ -68,7 +69,6 @@ const DashboardPage = () => {
       filtered = filtered.sort((a, b) => {
         const statusA = a.status || 'pending';
         const statusB = b.status || 'pending';
-        
         if (sortByStatus === 'priority') {
           // Sort by priority (pending first, resolved last)
           return (statusPriority[statusA] || 5) - (statusPriority[statusB] || 5);
@@ -80,8 +80,19 @@ const DashboardPage = () => {
       });
     }
 
+    // Sort by NOS if selected
+    if (sortByNOS) {
+      filtered = filtered.slice().sort((a, b) => {
+        const nosA = typeof a.nos === 'number' ? a.nos : (parseInt(a.nos) || 1);
+        const nosB = typeof b.nos === 'number' ? b.nos : (parseInt(b.nos) || 1);
+        if (sortByNOS === 'asc') return nosA - nosB;
+        if (sortByNOS === 'desc') return nosB - nosA;
+        return 0;
+      });
+    }
+
     return filtered;
-  }, [reports, selectedDepartment, selectedWard, sortByStatus]);
+  }, [reports, selectedDepartment, selectedWard, sortByStatus, sortByNOS]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -147,7 +158,7 @@ const DashboardPage = () => {
                 ))}
               </select>
             </div>
-            {/* --- NEW: Sort by Status --- */}
+            {/* --- Sort by Status --- */}
             <div className="col-md-3">
               <label htmlFor="statusSort" className="form-label">Sort by Status</label>
               <select 
@@ -159,6 +170,20 @@ const DashboardPage = () => {
                 <option value="">No Sorting</option>
                 <option value="priority">By Priority (Pending → Resolved)</option>
                 <option value="alphabetical">Alphabetical</option>
+              </select>
+            </div>
+            {/* --- NEW: Sort by NOS --- */}
+            <div className="col-md-3">
+              <label htmlFor="nosSort" className="form-label">Sort by NOS</label>
+              <select
+                id="nosSort"
+                className="form-select form-select-sm"
+                value={sortByNOS}
+                onChange={(e) => setSortByNOS(e.target.value)}
+              >
+                <option value="">No Sorting</option>
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
               </select>
             </div>
             <div className="col-md-3 d-flex align-items-end">
