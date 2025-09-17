@@ -316,159 +316,12 @@ app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
     if (!district_name) return res.status(403).json({ message: 'Admin is not associated with a district.' });
     
     try {
-        // Configuration: Set to 'first' for oldest image, 'latest' for newest image
-        const IMAGE_PREFERENCE = 'first'; // Change to 'latest' to show the most recent image
+        
+        const IMAGE_PREFERENCE = 'latest'; // Change to 'latest' to show the most recent image
         
         // Determine sort order based on preference
         const sortOrder = IMAGE_PREFERENCE === 'latest' ? 'DESC' : 'ASC';
         
-        // Updated query to include image from all_reports table based on preference
-        const result = await pool.query(`
-            SELECT 
-                mr.*, 
-                d.name as department_name, 
-                w.lat as latitude, 
-                w.long as longitude,
-                selected_report.image_url,
-                selected_report.description as selected_description,
-                selected_report.created_at as image_created_at
-            FROM merged_reports mr 
-            JOIN districts dt ON mr.district = dt.name
-            LEFT JOIN wards w ON mr.ward = w.ward_no AND w.district_id = dt.id
-            LEFT JOIN departments d ON mr.department_id = d.id 
-            LEFT JOIN LATERAL (
-                SELECT ar.image_url, ar.description, ar.created_at
-                FROM all_reports ar 
-                WHERE ar.problem = mr.problem 
-                AND ar.district = mr.district 
-                AND ar.ward = mr.ward 
-                AND ar.image_url IS NOT NULL 
-                AND TRIM(ar.image_url) != ''
-                ORDER BY ar.created_at ${sortOrder}
-                LIMIT 1
-            ) selected_report ON true
-            WHERE mr.district = $1
-            ORDER BY mr.updated_at DESC
-        `, [district_name]);
-        
-        const reportsForMap = result.rows.map(report => {
-            // Debug logging to help identify the issue
-            if (report.nos > 1 && !report.image_url) {
-                console.log(`Debug - Merged report ID ${report.id} (${report.problem}) has ${report.nos} submissions but no image_url`);
-            }
-            
-            return {
-                ...report,
-                location: (report.longitude && report.latitude) ? { coordinates: [report.longitude, report.latitude] } : null,
-                problem_type: report.problem,
-                // Ensure image_url is available for the modal
-                image_url: report.image_url,
-                description: report.selected_description || report.description,
-                image_created_at: report.image_created_at // Timestamp of when the selected image was submitted
-            };
-        });
-        
-        res.json(reportsForMap);
-    } catch (err) {
-        console.error('Error fetching admin reports:', err.message);
-        res.status(500).send('Server Error');
-    }
-});
-
-app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
-    const { id } = req.params;
-    const { status, department_id } = req.body;
-    const { district_name } = req.user;
-
-    try {
-        const reportCheck = await pool.query('SELECT district FROM merged_reports WHERE id = $1', [id]);
-        if (reportCheck.rows.length === 0) return res.status(404).json({ message: 'Report not found' });
-        if (reportCheck.rows[0].district !== district_name) return res.status(403).json({ message: 'Access denied.' });
-
-        const result = await pool.query(
-            'UPDATE merged_reports SET status = $1, department_id = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
-            [status, department_id, id]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
-    }
-});
-
-
-app.get('/api/admin/reports/debug', auth, adminAuth, async (req, res) => {
-    const { district_name } = req.user;
-    if (!district_name) return res.status(403).json({ message: 'Admin is not associated with a district.' });
-    
-    try {
-        // First, let's see what we have in both tables
-        const mergedReportsQuery = await pool.query(`
-            SELECT id, problem, district, ward, nos, created_at
-            FROM merged_reports 
-            WHERE district = $1
-            ORDER BY created_at DESC
-            LIMIT 5
-        `, [district_name]);
-
-        const allReportsQuery = await pool.query(`
-            SELECT problem, district, ward, image_url, created_at
-            FROM all_reports 
-            WHERE district = $1 
-            AND image_url IS NOT NULL 
-            AND TRIM(image_url) != ''
-            ORDER BY created_at DESC
-            LIMIT 10
-        `, [district_name]);
-
-        console.log('=== DEBUG INFO ===');
-        console.log('Merged Reports Sample:', mergedReportsQuery.rows);
-        console.log('All Reports with Images:', allReportsQuery.rows);
-        
-        // Test the join specifically
-        const joinTestQuery = await pool.query(`
-            SELECT 
-                mr.id,
-                mr.problem,
-                mr.district,
-                mr.ward,
-                ar.image_url,
-                ar.created_at as image_created
-            FROM merged_reports mr 
-            LEFT JOIN all_reports ar ON 
-                LOWER(TRIM(ar.problem)) = LOWER(TRIM(mr.problem))
-                AND LOWER(TRIM(ar.district)) = LOWER(TRIM(mr.district))
-                AND TRIM(ar.ward) = TRIM(mr.ward)
-                AND ar.image_url IS NOT NULL 
-                AND TRIM(ar.image_url) != ''
-            WHERE mr.district = $1
-            ORDER BY mr.created_at DESC
-        `, [district_name]);
-
-        res.json({
-            merged_reports: mergedReportsQuery.rows,
-            all_reports_with_images: allReportsQuery.rows,
-            join_test: joinTestQuery.rows
-        });
-    } catch (err) {
-        console.error('Debug query error:', err.message);
-        res.status(500).send('Debug Error');
-    }
-});
-
-// Updated main endpoint with case-insensitive matching
-app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
-    const { district_name } = req.user;
-    if (!district_name) return res.status(403).json({ message: 'Admin is not associated with a district.' });
-    
-    try {
-        // Configuration: Set to 'first' for oldest image, 'latest' for newest image
-        const IMAGE_PREFERENCE = 'first'; // Change to 'latest' to show the most recent image
-        
-        // Determine sort order based on preference
-        const sortOrder = IMAGE_PREFERENCE === 'latest' ? 'DESC' : 'ASC';
-        
-        // Updated query with case-insensitive and trimmed matching
         const result = await pool.query(`
             SELECT 
                 mr.*, 
@@ -519,6 +372,31 @@ app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+
+app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
+    const { id } = req.params;
+    const { status, department_id } = req.body;
+    const { district_name } = req.user;
+
+    try {
+        const reportCheck = await pool.query('SELECT district FROM merged_reports WHERE id = $1', [id]);
+        if (reportCheck.rows.length === 0) return res.status(404).json({ message: 'Report not found' });
+        if (reportCheck.rows[0].district !== district_name) return res.status(403).json({ message: 'Access denied.' });
+
+        const result = await pool.query(
+            'UPDATE merged_reports SET status = $1, department_id = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+            [status, department_id, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+
+
+
 // =================================================================
 //                      START SERVER
 // =================================================================
