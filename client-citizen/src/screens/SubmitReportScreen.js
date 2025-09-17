@@ -1,7 +1,8 @@
 import React, { useState, useContext } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
-  ActivityIndicator, SafeAreaView, StatusBar, ScrollView, Image
+  ActivityIndicator, SafeAreaView, StatusBar, ScrollView, Image,
+  KeyboardAvoidingView, Platform // <-- 1. CHANGED: Import KeyboardAvoidingView and Platform
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,6 +12,7 @@ import { AuthContext } from '../context/AuthContext';
 const GEMINI_API_KEY = "AIzaSyBv93gC2KbtyHh_LOV_3ly8g0bU142sOmo";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 const BACKEND_URL = "https://nagar-seva-1.onrender.com";
+
 
 const departments = [
   "Public Health / Sanitation Department", "Engineering / Roads Department",
@@ -226,66 +228,72 @@ const ComplaintScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Register Complaint</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
-            <Text style={styles.label}>1. Describe the Issue</Text>
-            <TextInput
-                style={styles.inputLarge}
-                placeholder="e.g., 'Large pothole near the main bus stop...'"
-                placeholderTextColor={colors.textSecondary}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-            />
-            <TouchableOpacity
-                style={[styles.button, styles.analyzeButton, (isAnalyzing || description.length < 15) && styles.buttonDisabled]}
-                onPress={analyzeDescription}
-                disabled={isAnalyzing || description.length < 15}>
-                {isAnalyzing ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Analyze with AI</Text>}
-            </TouchableOpacity>
-            {problemKeyword ? (
-                <View style={styles.resultContainer}>
-                    <Text style={styles.resultText}>Keyword: <Text style={{fontWeight: 'normal'}}>{problemKeyword}</Text></Text>
-                    <Text style={styles.resultText}>Department: <Text style={{fontWeight: 'normal'}}>{assignedDepartment}</Text></Text>
-                </View>
-            ) : null}
-        </View>
+      {/* // 2. WRAP the ScrollView */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingContainer} // Use flex: 1 style
+      >
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.card}>
+              <Text style={styles.label}>1. Describe the Issue</Text>
+              <TextInput
+                  style={styles.inputLarge}
+                  placeholder="e.g., 'Large pothole near the main bus stop...'"
+                  placeholderTextColor={colors.textSecondary}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+              />
+              <TouchableOpacity
+                  style={[styles.button, styles.analyzeButton, (isAnalyzing || description.length < 15) && styles.buttonDisabled]}
+                  onPress={analyzeDescription}
+                  disabled={isAnalyzing || description.length < 15}>
+                  {isAnalyzing ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Analyze with AI</Text>}
+              </TouchableOpacity>
+              {problemKeyword ? (
+                  <View style={styles.resultContainer}>
+                      <Text style={styles.resultText}>Keyword: <Text style={{fontWeight: 'normal'}}>{problemKeyword}</Text></Text>
+                      <Text style={styles.resultText}>Department: <Text style={{fontWeight: 'normal'}}>{assignedDepartment}</Text></Text>
+                  </View>
+              ) : null}
+          </View>
 
-        <View style={styles.card}>
-            <Text style={styles.label}>2. Add Photo & Location</Text>
-            <View style={styles.imagePickerContainer}>
-                <TouchableOpacity style={[styles.button, styles.imageButton]} onPress={handleChoosePhoto}>
-                    <Text style={styles.buttonText}>Upload</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.button, styles.imageButton]} onPress={handleTakePhoto}>
-                    <Text style={styles.buttonText}>Take Photo</Text>
-                </TouchableOpacity>
-            </View>
-            {image && (
-                <View style={styles.imagePreviewContainer}>
-                    <Image source={{ uri: image.uri }} style={styles.imagePreview} />
-                    {location && (
-                        <Text style={styles.locationText}>
-                            📍 Geo-tag from Photo: Lat: {location.latitude.toFixed(4)}, Lon: {location.longitude.toFixed(4)}
-                        </Text>
-                    )}
-                </View>
-            )}
+          <View style={styles.card}>
+              <Text style={styles.label}>2. Add Photo & Location</Text>
+              <View style={styles.imagePickerContainer}>
+                  <TouchableOpacity style={[styles.button, styles.imageButton]} onPress={handleChoosePhoto}>
+                      <Text style={styles.buttonText}>Upload</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.button, styles.imageButton]} onPress={handleTakePhoto}>
+                      <Text style={styles.buttonText}>Take Photo</Text>
+                  </TouchableOpacity>
+              </View>
+              {image && (
+                  <View style={styles.imagePreviewContainer}>
+                      <Image source={{ uri: image.uri }} style={styles.imagePreview} />
+                      {location && (
+                          <Text style={styles.locationText}>
+                              📍 Geo-tag from Photo: Lat: {location.latitude.toFixed(4)}, Lon: {location.longitude.toFixed(4)}
+                          </Text>
+                      )}
+                  </View>
+              )}
 
-            <Text style={[styles.label, { marginTop: 15 }]}>Or, Enter Manually</Text>
-            <View style={styles.manualLocationContainer}>
-                <TextInput style={styles.locationInput} placeholder="Latitude" value={manualLatitude} onChangeText={setManualLatitude} keyboardType="numeric" />
-                <TextInput style={styles.locationInput} placeholder="Longitude" value={manualLongitude} onChangeText={setManualLongitude} keyboardType="numeric" />
-            </View>
-        </View>
-        
-        <TouchableOpacity
-            style={[styles.button, styles.submitButton, (isSubmitting || !problemKeyword || !image) && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={isSubmitting || !problemKeyword || !image}>
-            {isSubmitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Submit Complaint</Text>}
-        </TouchableOpacity>
-      </ScrollView>
+              <Text style={[styles.label, { marginTop: 15 }]}>Or, Enter Manually</Text>
+              <View style={styles.manualLocationContainer}>
+                  <TextInput style={styles.locationInput} placeholder="Latitude" value={manualLatitude} onChangeText={setManualLatitude} keyboardType="numeric" />
+                  <TextInput style={styles.locationInput} placeholder="Longitude" value={manualLongitude} onChangeText={setManualLongitude} keyboardType="numeric" />
+              </View>
+          </View>
+          
+          <TouchableOpacity
+              style={[styles.button, styles.submitButton, (isSubmitting || !problemKeyword || !image) && styles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting || !problemKeyword || !image}>
+              {isSubmitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Submit Complaint</Text>}
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -306,7 +314,11 @@ const colors = {
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.background },
-    header: { backgroundColor: colors.primary, paddingVertical: 15, paddingHorizontal: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    // 3. ADD a style for the wrapper
+    keyboardAvoidingContainer: {
+      flex: 1,
+    },
+    header: { backgroundColor: colors.primary, paddingVertical: 15, paddingHorizontal: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     headerTitle: { color: colors.white, fontSize: 20, fontWeight: 'bold' },
     container: { padding: 15, paddingBottom: 50 },
     card: { backgroundColor: colors.white, borderRadius: 12, padding: 15, marginBottom: 15, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6 },
