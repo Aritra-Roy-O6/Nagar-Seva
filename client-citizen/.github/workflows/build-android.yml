@@ -3,13 +3,12 @@ name: Build Android APK
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
-  workflow_dispatch:  # Allows manual trigger
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # ✅ Set the default working directory for all steps
     defaults:
       run:
         working-directory: ./client-citizen
@@ -21,8 +20,8 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
-        # ✅ Cache npm packages for faster builds
+        # ✅ Use a newer version of Node.js
+        node-version: '20'
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
 
@@ -39,12 +38,14 @@ jobs:
       run: npm install
 
     - name: Build Android APK
+      # ✅ Add the EXPO_TOKEN environment variable
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
         npx expo install --fix
         npx eas build --profile preview --platform android --local --non-interactive --output=./app-release.apk
 
     - name: List files to verify APK
-      # This step helps in debugging by showing what files were created
       run: ls -R
 
     - name: Upload APK to Release
