@@ -33,5 +33,18 @@ allprojects {
   }
 }
 
+android {
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsc.so'
+    }
+    
+    configurations {
+        all {
+            exclude group: 'com.google.android.material', module: 'material'
+        }
+    }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
