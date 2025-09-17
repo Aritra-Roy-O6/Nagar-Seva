@@ -56,14 +56,18 @@ const io = new Server(server, {
 // ADDED: Socket.IO Authentication Middleware
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
+    console.log('Socket auth attempt:', token ? 'Token provided' : 'No token');
+    
     if (!token) {
         return next(new Error('Authentication error: No token provided'));
     }
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         socket.user = decoded.user; // Attach user info to the socket
+        console.log('Socket auth success for user:', decoded.user.name);
         next();
     } catch (err) {
+        console.log('Socket auth failed:', err.message);
         next(new Error('Authentication error: Token is not valid'));
     }
 });
@@ -82,7 +86,6 @@ io.on('connection', (socket) => {
         console.log(`Admin disconnected: ${socket.user.name} (${socket.id})`);
     });
 });
-
 
 // =================================================================
 //                      AUTHENTICATION & MIDDLEWARE
@@ -160,7 +163,6 @@ const getFullReportDetailsById = async (reportId) => {
     };
 };
 
-
 // =================================================================
 //                      PUBLIC & SHARED ROUTES
 // =================================================================
@@ -213,6 +215,91 @@ app.get('/api/departments', auth, adminAuth, async (req, res) => {
 //                      REGISTRATION & LOGIN
 // =================================================================
 
+// NEW: Endpoint for State Admin Registration
+app.post('/api/auth/state-admin/register', async (req, res) => {
+    const { name, email, password, secretKey } = req.body;
+    
+    // The hardcoded secret key required to register a state admin
+    const STATE_ADMIN_SECRET_KEY = 'NAGARSEVA_STATE_SECRET_KEY_2024';
+
+    if (!name || !email || !password || !secretKey) {
+        return res.status(400).json({ message: 'All fields are required.' });
+    }
+
+    if (secretKey !== STATE_ADMIN_SECRET_KEY) {
+        return res.status(403).json({ message: 'Invalid Secret Key. State Admin registration denied.' });
+    }
+    
+    try {
+        const existingAdmin = await pool.query('SELECT uid FROM state_admins WHERE email = $1', [email]);
+        if (existingAdmin.rows.length > 0) {
+            return res.status(400).json({ message: 'Email is already registered as a State Admin.' });
+        }
+        
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        const newAdmin = await pool.query(
+            'INSERT INTO state_admins (name, email, password_hash) VALUES ($1, $2, $3) RETURNING uid, name, email',
+            [name, email, passwordHash]
+        );
+        
+        res.status(201).json({ 
+            message: 'State Admin registered successfully!', 
+            user: newAdmin.rows[0] 
+        });
+
+    } catch (err) {
+        console.error('State admin registration error:', err.message);
+        res.status(500).send('Server error during registration.');
+    }
+});
+
+// FIXED: Single login endpoint - removed duplicate
+app.post('/api/auth/login', async (req, res) => {
+    const { identifier, password, userType } = req.body;
+    if (!identifier || !password || !userType) return res.status(400).json({ message: 'All fields are required' });
+    
+    let userQuery;
+    if (userType === 'citizen') {
+        userQuery = { text: 'SELECT *, \'citizen\' as role FROM citizens WHERE phone_no = $1', values: [identifier] };
+    } else if (userType === 'admin') {
+        userQuery = { 
+            text: `SELECT a.*, d.name as district_name FROM admins a LEFT JOIN districts d ON a.district_id = d.id WHERE a.email = $1`, 
+            values: [identifier] 
+        };
+    } else if (userType === 'state_admin') {
+        userQuery = { text: 'SELECT *, \'state_admin\' as role FROM state_admins WHERE email = $1', values: [identifier] };
+    } else {
+        return res.status(400).json({ message: 'Invalid user type specified.' });
+    }
+
+    try {
+        const userResult = await pool.query(userQuery);
+        if (userResult.rows.length === 0) return res.status(400).json({ message: 'Invalid credentials' });
+        
+        const user = userResult.rows[0];
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+        const payload = { 
+            user: { 
+                uid: user.uid, 
+                name: user.name, 
+                role: user.role,
+                district_id: user.district_id || null, 
+                district_name: user.district_name || null
+            } 
+        };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+        res.json({ token, user: payload.user });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+});
+
 app.post('/api/auth/citizen/register', async (req, res) => {
     const { name, phone_no, password } = req.body;
     if (!name || !phone_no || !password) return res.status(400).json({ message: 'All fields are required' });
@@ -255,50 +342,6 @@ app.post('/api/auth/admin/register', async (req, res) => {
             [name, email, passwordHash, role, districtId]
         );
         res.status(201).json(newAdmin.rows[0]);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-    const { identifier, password, userType } = req.body;
-    if (!identifier || !password || !userType) return res.status(400).json({ message: 'All fields are required' });
-    
-    let userQuery;
-    if (userType === 'citizen') {
-        userQuery = { text: 'SELECT *, \'citizen\' as role FROM citizens WHERE phone_no = $1', values: [identifier] };
-    } else if (userType === 'admin') {
-        userQuery = { 
-            text: `SELECT a.*, d.name as district_name FROM admins a LEFT JOIN districts d ON a.district_id = d.id WHERE a.email = $1`, 
-            values: [identifier] 
-        };
-    } else if (userType === 'state_admin') {
-        userQuery = { text: 'SELECT *, \'state_admin\' as role FROM state_admins WHERE email = $1', values: [identifier] };
-    } else {
-        return res.status(400).json({ message: 'Invalid user type specified.' });
-    }
-
-    try {
-        const userResult = await pool.query(userQuery);
-        if (userResult.rows.length === 0) return res.status(400).json({ message: 'Invalid credentials' });
-        
-        const user = userResult.rows[0];
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
-
-        const payload = { 
-            user: { 
-                uid: user.uid, 
-                name: user.name, 
-                role: user.role,
-                district_id: user.district_id,
-                district_name: user.district_name
-            } 
-        };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
-
-        res.json({ token, user: payload.user });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
@@ -600,7 +643,6 @@ app.get('/api/state-admin/analytics', auth, stateAdminAuth, async (req, res) => 
         res.status(500).send('Server Error');
     }
 });
-
 
 // =================================================================
 //                      START SERVER

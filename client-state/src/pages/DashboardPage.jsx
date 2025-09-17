@@ -9,6 +9,7 @@ const EscalatedReportsPage = () => {
     const fetchEscalatedReports = async () => {
       try {
         setLoading(true);
+        // MODIFIED: This endpoint is now secured by stateAdminAuth middleware
         const response = await apiClient.get('/state-admin/escalated-reports');
         setReports(response.data);
       } catch (err) {

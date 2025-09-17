@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useContext } from 'react'; // MODIFIED: Import useContext
 import { NavLink } from 'react-router-dom';
 import { Navbar, Nav, NavDropdown } from 'react-bootstrap';
+import { AuthContext } from '../context/AuthContext'; // MODIFIED: Import AuthContext
 
 const AdminLayout = ({ children }) => {
-  // AuthContext and logout removed for demo/no-auth mode
+  // MODIFIED: Get user and logout function from context
+  const { user, logout } = useContext(AuthContext); 
+
   const handleLogout = () => {
-    // No-op for logout in demo mode
-    window.location.reload();
+    logout();
+    // Redirect to login or home page after logout
+    window.location.href = '/login'; // Or your login page route
   };
 
   return (
@@ -15,15 +19,23 @@ const AdminLayout = ({ children }) => {
         <Navbar.Brand href="/">NagarSeva Admin</Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
-          <Nav className="me-auto"> {/* MODIFIED: Changed ms-auto to me-auto */}
-            <Nav.Link as={NavLink} to="/" end>Escalated Reports</Nav.Link>
-            {/* ADDED: Link to the new Analytics Page */}
-            <Nav.Link as={NavLink} to="/analytics">Analytics</Nav.Link>
+          <Nav className="me-auto">
+            {/* MODIFIED: Conditional navigation links */}
+            {user?.role === 'state_admin' ? (
+              <>
+                <Nav.Link as={NavLink} to="/" end>Escalated Reports</Nav.Link>
+                <Nav.Link as={NavLink} to="/analytics">Analytics</Nav.Link>
+              </>
+            ) : (
+              <Nav.Link as={NavLink} to="/" end>Dashboard</Nav.Link>
+            )}
           </Nav>
-          <Nav className="ms-auto"> {/* ADDED: New Nav for the dropdown */}
-            <NavDropdown title="Admin" id="basic-nav-dropdown">
-              <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
-            </NavDropdown>
+          <Nav className="ms-auto">
+            {user && (
+              <NavDropdown title={user.name || 'Admin'} id="basic-nav-dropdown">
+                <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
+              </NavDropdown>
+            )}
           </Nav>
         </Navbar.Collapse>
       </Navbar>
