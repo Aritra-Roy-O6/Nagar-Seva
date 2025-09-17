@@ -51,7 +51,6 @@ jobs:
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        # ✅ Point to the APK inside the correct directory
         files: client-citizen/app-release.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
