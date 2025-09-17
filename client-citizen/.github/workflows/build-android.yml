@@ -9,39 +9,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    # ✅ Set the default working directory for all steps
+    defaults:
+      run:
+        working-directory: ./client-citizen
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        
+        # ✅ Cache npm packages for faster builds
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
-        
+
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-      
+
     - name: Install dependencies
       run: npm install
-      
+
     - name: Build Android APK
       run: |
         npx expo install --fix
-        # ✅ Use the 'preview' profile and specify the output file
         npx eas build --profile preview --platform android --local --non-interactive --output=./app-release.apk
-        
+
+    - name: List files to verify APK
+      # This step helps in debugging by showing what files were created
+      run: ls -R
+
     - name: Upload APK to Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        # ✅ Point directly to the APK file we created
-        files: app-release.apk
+        # ✅ Point to the APK inside the correct directory
+        files: client-citizen/app-release.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
