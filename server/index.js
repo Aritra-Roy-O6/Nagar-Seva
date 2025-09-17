@@ -8,7 +8,11 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const cloudinary = require('cloudinary').v2;
 const admin = require('firebase-admin');
- 
+
+// ADDED: Import http and Socket.IO
+const http = require('http');
+const { Server } = require("socket.io");
+
 // --- Service Initialization ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -40,6 +44,46 @@ const reportLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// ADDED: Create HTTP server and initialize Socket.IO
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: process.env.FRONTEND_URL || "http://localhost:3000", // Your frontend URL
+        methods: ["GET", "POST"]
+    }
+});
+
+// ADDED: Socket.IO Authentication Middleware
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+        return next(new Error('Authentication error: No token provided'));
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.user = decoded.user; // Attach user info to the socket
+        next();
+    } catch (err) {
+        next(new Error('Authentication error: Token is not valid'));
+    }
+});
+
+// ADDED: Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log(`Admin connected: ${socket.user.name} (${socket.id})`);
+
+    // Join a room specific to the admin's district
+    if (socket.user && socket.user.district_name) {
+        socket.join(socket.user.district_name);
+        console.log(`Socket ${socket.id} joined room: ${socket.user.district_name}`);
+    }
+
+    socket.on('disconnect', () => {
+        console.log(`Admin disconnected: ${socket.user.name} (${socket.id})`);
+    });
+});
+
+
 // =================================================================
 //                      AUTHENTICATION & MIDDLEWARE
 // =================================================================
@@ -70,6 +114,52 @@ const stateAdminAuth = (req, res, next) => {
     }
     next();
 };
+
+// =================================================================
+//                      HELPER FUNCTIONS
+// =================================================================
+
+// ADDED: A helper function to get full report details by ID
+const getFullReportDetailsById = async (reportId) => {
+    const query = `
+        SELECT 
+            mr.*, 
+            d.name as department_name, 
+            w.lat as latitude, 
+            w.long as longitude,
+            selected_report.image_url,
+            selected_report.description as selected_description,
+            selected_report.created_at as image_created_at,
+            dt.id as district_id
+        FROM merged_reports mr 
+        JOIN districts dt ON mr.district = dt.name
+        LEFT JOIN wards w ON mr.ward = w.ward_no AND w.district_id = dt.id
+        LEFT JOIN departments d ON mr.department_id = d.id 
+        LEFT JOIN LATERAL (
+            SELECT ar.image_url, ar.description, ar.created_at
+            FROM all_reports ar 
+            WHERE LOWER(TRIM(ar.problem)) = LOWER(TRIM(mr.problem))
+            AND LOWER(TRIM(ar.district)) = LOWER(TRIM(mr.district))
+            AND TRIM(ar.ward) = TRIM(mr.ward)
+            AND ar.image_url IS NOT NULL AND TRIM(ar.image_url) != ''
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+        ) selected_report ON true
+        WHERE mr.id = $1
+    `;
+    const result = await pool.query(query, [reportId]);
+    if (result.rows.length === 0) return null;
+
+    // Structure the data to match the dashboard's expectation
+    const report = result.rows[0];
+    return {
+        ...report,
+        location: (report.longitude && report.latitude) ? { coordinates: [report.longitude, report.latitude] } : null,
+        problem_type: report.problem,
+        description: report.selected_description || report.description,
+    };
+};
+
 
 // =================================================================
 //                      PUBLIC & SHARED ROUTES
@@ -236,6 +326,7 @@ const getDistrictAndWard = async (lat, lng) => {
     }
 };
 
+// MODIFIED: This route now emits a socket event after successful submission
 app.post('/api/reports', auth, reportLimiter, async (req, res) => {
     const { problem, description, image_url, latitude, longitude, department } = req.body;
     const { uid: citizen_uid } = req.user;
@@ -278,6 +369,13 @@ app.post('/api/reports', auth, reportLimiter, async (req, res) => {
         );
         
         await client.query('COMMIT');
+        
+        // ADDED: Fetch the full report details and emit to the relevant district room
+        const fullReportDetails = await getFullReportDetailsById(mergedReportId);
+        if (fullReportDetails) {
+            io.to(district_name).emit('new_or_updated_report', fullReportDetails);
+            console.log(`Emitted 'new_or_updated_report' to room: ${district_name}`);
+        }
         
         res.status(201).json({ 
             message: 'Report submitted successfully.', 
@@ -373,6 +471,7 @@ app.get('/api/admin/reports', auth, adminAuth, async (req, res) => {
     }
 });
 
+// MODIFIED: This route now emits a socket event after a successful update
 app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
     const { id } = req.params;
     const { status, department_id } = req.body;
@@ -387,19 +486,126 @@ app.put('/api/admin/reports/:id', auth, adminAuth, async (req, res) => {
             'UPDATE merged_reports SET status = $1, department_id = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
             [status, department_id, id]
         );
-        res.json(result.rows[0]);
+        
+        // ADDED: Fetch full details and emit an update event to the district room
+        const updatedReportDetails = await getFullReportDetailsById(id);
+        if (updatedReportDetails) {
+            io.to(district_name).emit('report_updated', updatedReportDetails);
+            console.log(`Emitted 'report_updated' to room: ${district_name}`);
+        }
+
+        res.json(result.rows[0]); // Still return the simple response to the admin who made the change
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
     }
 });
 
+// NEW: Endpoint for State Admin to get escalated reports
+app.get('/api/state-admin/escalated-reports', auth, stateAdminAuth, async (req, res) => {
+    try {
+        const fourMonthsAgo = new Date();
+        fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
 
+        const result = await pool.query(`
+            SELECT 
+                mr.id,
+                mr.problem,
+                mr.district,
+                mr.ward,
+                mr.nos,
+                mr.status,
+                mr.created_at,
+                d.name AS department_name
+            FROM 
+                merged_reports mr
+            LEFT JOIN 
+                departments d ON mr.department_id = d.id
+            WHERE 
+                mr.nos > 100
+                AND mr.status != 'resolved'
+                AND mr.created_at < $1
+            ORDER BY 
+                mr.created_at ASC;
+        `, [fourMonthsAgo]);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching escalated reports:', err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// NEW: Endpoint for State Admin analytics data
+app.get('/api/state-admin/analytics', auth, stateAdminAuth, async (req, res) => {
+    const { districtId } = req.query; // Expecting districtId=... in the query string
+
+    if (!districtId) {
+        return res.status(400).json({ message: 'A district ID is required.' });
+    }
+
+    try {
+        const client = await pool.connect();
+        
+        // Query for Pie Chart data (status breakdown)
+        const statusQuery = `
+            SELECT status, COUNT(*) as count
+            FROM merged_reports mr
+            JOIN districts d ON mr.district = d.name
+            WHERE d.id = $1
+            GROUP BY status;
+        `;
+        const statusResult = await client.query(statusQuery, [districtId]);
+
+        // Query for Line Chart data (report frequency over time)
+        const frequencyQuery = `
+            SELECT 
+                DATE_TRUNC('week', created_at)::DATE as week,
+                COUNT(*) as count
+            FROM merged_reports mr
+            JOIN districts d ON mr.district = d.name
+            WHERE d.id = $1
+            GROUP BY week
+            ORDER BY week;
+        `;
+        const frequencyResult = await client.query(frequencyQuery, [districtId]);
+
+        client.release();
+
+        // Format data for the frontend charts
+        const statusData = {
+            submitted: 0,
+            in_progress: 0,
+            resolved: 0,
+            rejected: 0
+        };
+        statusResult.rows.forEach(row => {
+            if (statusData.hasOwnProperty(row.status)) {
+                statusData[row.status] = parseInt(row.count, 10);
+            }
+        });
+
+        const frequencyData = {
+            labels: frequencyResult.rows.map(row => new Date(row.week).toLocaleDateString()),
+            data: frequencyResult.rows.map(row => parseInt(row.count, 10))
+        };
+
+        res.json({
+            statusData,
+            frequencyData
+        });
+
+    } catch (err) {
+        console.error('Error fetching analytics data:', err.message);
+        res.status(500).send('Server Error');
+    }
+});
 
 
 // =================================================================
 //                      START SERVER
 // =================================================================
-app.listen(PORT, () => {
+// MODIFIED: Use the http server to listen, not the express app
+server.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
 });

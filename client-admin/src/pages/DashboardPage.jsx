@@ -3,35 +3,40 @@ import apiClient from '../api/client';
 import ReportDetailModal from '../components/ReportDetailModal';
 import { AuthContext } from '../context/AuthContext';
 
+// ADDED: Import socket.io-client
+import { io } from 'socket.io-client';
+
+// ADDED: Initialize socket connection (it will be undefined until connected)
+let socket;
+
 const DashboardPage = () => {
-  const { user } = useContext(AuthContext);
+  const { user, token } = useContext(AuthContext); // MODIFIED: Get token from context
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // ADDED: State to track socket connection status
+  const [isConnected, setIsConnected] = useState(false);
 
   // --- State for filters and sorting ---
   const [departments, setDepartments] = useState([]);
   const [wards, setWards] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState(''); // Empty string means "All"
-  const [selectedWard, setSelectedWard] = useState(''); // Empty string means "All"
-  const [sortByStatus, setSortByStatus] = useState(''); // Empty string means no specific sorting
-  const [sortByNOS, setSortByNOS] = useState(''); // NEW: Empty string means no NOS sorting
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedWard, setSelectedWard] = useState('');
+  const [sortByStatus, setSortByStatus] = useState('');
+  const [sortByNOS, setSortByNOS] = useState('');
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        // Use Promise.all to fetch reports and filter data concurrently
         const [reportsResponse, deptsResponse] = await Promise.all([
           apiClient.get('/admin/reports'),
           apiClient.get('/departments')
         ]);
-
         setReports(Array.isArray(reportsResponse.data) ? reportsResponse.data : []);
         setDepartments(deptsResponse.data);
-
-        // Fetch wards specific to the logged-in admin's district
         if (user?.district_id) {
           const wardsResponse = await apiClient.get(`/districts/${user.district_id}/wards`);
           setWards(wardsResponse.data);
@@ -45,42 +50,78 @@ const DashboardPage = () => {
     };
 
     fetchInitialData();
-  }, [user]); // Re-fetch if the user object changes
+
+    // ADDED: Set up Socket.IO connection and listeners
+    if (token) {
+        // Connect to the server with the auth token
+        socket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001', {
+            auth: {
+                token: token
+            }
+        });
+
+        socket.on('connect', () => {
+            console.log('Successfully connected to real-time server!');
+            setIsConnected(true);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from real-time server.');
+            setIsConnected(false);
+        });
+
+        // Listener for new or updated reports from citizen submissions
+        socket.on('new_or_updated_report', (incomingReport) => {
+            console.log('Real-time: Received new or updated report', incomingReport);
+            setReports(prevReports => {
+                const existingReportIndex = prevReports.findIndex(r => r.id === incomingReport.id);
+                // If report exists, update it
+                if (existingReportIndex !== -1) {
+                    const updatedReports = [...prevReports];
+                    updatedReports[existingReportIndex] = incomingReport;
+                    return updatedReports;
+                }
+                // If it's a new report, add it to the top
+                return [incomingReport, ...prevReports];
+            });
+        });
+
+        // Listener for reports updated by other admins
+        socket.on('report_updated', (updatedReport) => {
+            console.log('Real-time: Received report update from another admin', updatedReport);
+            handleReportUpdate(updatedReport); // Reuse existing update logic
+        });
+    }
+
+    // Cleanup function to disconnect socket and remove listeners on component unmount
+    return () => {
+        if (socket) {
+            console.log('Disconnecting socket...');
+            socket.disconnect();
+        }
+    };
+  }, [user, token]); // MODIFIED: Re-run effect if user or token changes
 
   // --- Filtering and sorting logic ---
   const filteredAndSortedReports = useMemo(() => {
-    // First, filter the reports
     let filtered = reports.filter(report => {
       const departmentMatch = selectedDepartment ? report.department_name === selectedDepartment : true;
       const wardMatch = selectedWard ? report.ward === selectedWard : true;
       return departmentMatch && wardMatch;
     });
-
-    // Sort by status if selected
     if (sortByStatus) {
-      const statusPriority = {
-        'submitted': 1,
-        'pending': 2,
-        'in_progress': 3,
-        'resolved': 4,
-        'rejected': 5
-      };
-
+      const statusPriority = { 'submitted': 1, 'pending': 2, 'in_progress': 3, 'resolved': 4, 'rejected': 5 };
       filtered = filtered.sort((a, b) => {
         const statusA = a.status || 'pending';
         const statusB = b.status || 'pending';
         if (sortByStatus === 'priority') {
-          // Sort by priority (pending first, resolved last)
           return (statusPriority[statusA] || 5) - (statusPriority[statusB] || 5);
         } else if (sortByStatus === 'alphabetical') {
-          // Sort alphabetically
           return statusA.localeCompare(statusB);
         }
         return 0;
       });
     }
-
-    // Sort by NOS if selected
     if (sortByNOS) {
       filtered = filtered.slice().sort((a, b) => {
         const nosA = typeof a.nos === 'number' ? a.nos : (parseInt(a.nos) || 1);
@@ -90,7 +131,6 @@ const DashboardPage = () => {
         return 0;
       });
     }
-
     return filtered;
   }, [reports, selectedDepartment, selectedWard, sortByStatus, sortByNOS]);
 
@@ -126,6 +166,13 @@ const DashboardPage = () => {
   return (
     <>
       <h3 className="mb-4">Reports Dashboard - {user?.district_name || 'Your District'}</h3>
+      
+      {/* ADDED: Connection status indicator */}
+      <div className="d-flex align-items-center mb-3">
+          <span className={`me-2 p-1 border border-2 rounded-circle ${isConnected ? 'bg-success' : 'bg-danger'}`} style={{width: '10px', height: '10px'}}></span>
+          <span>Real-time Connection: <strong>{isConnected ? 'Connected' : 'Disconnected'}</strong></span>
+      </div>
+
       <div className="card shadow-sm">
         <div className="card-body">
           {/* --- Filter and Sort Controls --- */}
