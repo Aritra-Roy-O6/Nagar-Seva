@@ -145,7 +145,7 @@ jobs:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
         # Start build and wait for completion
-        npx eas build --profile preview --platform android --wait --no-wait-for-build-id
+        npx eas build --profile preview --platform android --wait
 
     - name: Download built APK
       working-directory: ./client-citizen
