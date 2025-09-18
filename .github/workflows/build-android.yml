@@ -20,90 +20,45 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '18'  # Try older Node version
         cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
 
-    - name: Install dependencies
-      run: npm install
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'  # Try older Java version
 
-    - name: Install React Navigation dependencies
-      run: npx expo install react-native-gesture-handler react-native-safe-area-context react-native-screens
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
-    - name: Force managed workflow by removing native folders
+    - name: Clean install dependencies
       run: |
-        rm -rf android ios
-        git add . || true
-        git commit -m "Remove native folders for managed build" || true
+        rm -rf node_modules package-lock.json
+        npm install
 
-    - name: Update app.json for managed build
+    - name: Downgrade problematic dependencies
       run: |
-        # Ensure all native config is in app.json since we removed native folders
-        cat > app.json << 'EOF'
-        {
-          "expo": {
-            "name": "client-citizen",
-            "slug": "client-citizen", 
-            "version": "1.0.0",
-            "orientation": "portrait",
-            "icon": "./assets/icon.png",
-            "userInterfaceStyle": "light",
-            "newArchEnabled": true,
-            "splash": {
-              "image": "./assets/splash-icon.png",
-              "resizeMode": "contain",
-              "backgroundColor": "#ffffff"
-            },
-            "ios": {
-              "supportsTablet": true
-            },
-            "android": {
-              "adaptiveIcon": {
-                "foregroundImage": "./assets/adaptive-icon.png",
-                "backgroundColor": "#ffffff"
-              },
-              "package": "com.citizenapp.mobile",
-              "permissions": [
-                "android.permission.RECORD_AUDIO"
-              ]
-            },
-            "web": {
-              "favicon": "./assets/favicon.png"
-            },
-            "plugins": [
-              [
-                "expo-image-picker",
-                {
-                  "photosPermission": "The app accesses your photos to let you share them with your complaints.",
-                  "cameraPermission": "The app accesses your camera to let you take photos for complaints."
-                }
-              ]
-            ],
-            "extra": {
-              "eas": {
-                "projectId": "458df376-755b-4892-ba9a-bcd7eb0c9fdd"
-              }
-            }
-          }
-        }
-        EOF
-
-    - name: Build Android APK with clean managed workflow
-      env:
-        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      run: |
+        npm install react-native@0.72.6
+        npm install @react-native-async-storage/async-storage@1.19.3
         npx expo install --fix
-        npx eas build --profile preview --platform android --non-interactive --wait
 
-    - name: Download APK from EAS
+    - name: Install React Navigation dependencies (older versions)
+      run: |
+        npm install react-native-gesture-handler@2.12.1
+        npm install react-native-safe-area-context@4.7.4
+        npm install react-native-screens@3.25.0
+
+    - name: Use Turtle CLI instead of EAS
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
-        # Get the latest build info and download URL
-        BUILD_INFO=$(npx eas build:list --platform=android --limit=1 --json)
-        BUILD_URL=$(echo $BUILD_INFO | jq -r '.[0].artifacts.buildUrl')
-        wget -O app-release.apk "$BUILD_URL"
-        ls -la *.apk
+        npm install -g turtle-cli
+        turtle setup:android --sdk-version 44.0.0
+        turtle build:android --keystore-path <(echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d) --keystore-password "${{ secrets.KEYSTORE_PASSWORD }}" --key-alias "${{ secrets.KEY_ALIAS }}" --key-password "${{ secrets.KEY_PASSWORD }}" --type apk --output ./app-release.apk
+
+    - name: List files to verify APK
+      run: ls -la *.apk
 
     - name: Upload APK to Release
       uses: softprops/action-gh-release@v2
