@@ -19,13 +19,13 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-        cache-dependency-path: 'client-citizen/package-lock.json'  # Fixed path
+        cache-dependency-path: 'client-citizen/package-lock.json'
 
-    - name: Setup Java
+    - name: Setup Java 17 (Required for Android SDK)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '11'
+        java-version: '17'
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
@@ -36,7 +36,7 @@ jobs:
         rm -rf node_modules package-lock.json
         npm install
 
-    - name: Try simple Expo build without complications
+    - name: Build with Expo
       working-directory: ./client-citizen
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -58,7 +58,6 @@ jobs:
         }
         EOF
         
-        # Simple build without complications
         npx eas build --profile preview --platform android --wait
 
     - name: Download APK
