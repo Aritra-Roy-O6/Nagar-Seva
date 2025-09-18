@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -30,49 +30,186 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install dependencies
+    - name: Install global Expo CLI
+      run: npm install -g @expo/cli
+
+    - name: Clean install dependencies
       working-directory: ./client-citizen
       run: |
         rm -rf node_modules package-lock.json
+        npm cache clean --force
         npm install
 
-    - name: Build with Expo
+    - name: Install missing React Navigation dependencies
       working-directory: ./client-citizen
-      env:
-        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
-        # Create minimal eas.json
-        cat > eas.json << 'EOF'
+        npx expo install react-native-gesture-handler react-native-safe-area-context react-native-screens
+
+    - name: Remove problematic android folder to force managed workflow
+      working-directory: ./client-citizen
+      run: |
+        rm -rf android ios
+        echo "/android" >> .gitignore || true
+        echo "/ios" >> .gitignore || true
+
+    - name: Update app.json to ensure all native config is present
+      working-directory: ./client-citizen
+      run: |
+        cat > app.json << 'EOF'
         {
-          "cli": {
-            "version": ">= 7.6.0"
-          },
-          "build": {
-            "preview": {
-              "distribution": "internal",
-              "android": {
-                "buildType": "apk"
+          "expo": {
+            "name": "client-citizen",
+            "slug": "client-citizen",
+            "version": "1.0.0",
+            "orientation": "portrait",
+            "icon": "./assets/icon.png",
+            "userInterfaceStyle": "light",
+            "newArchEnabled": true,
+            "splash": {
+              "image": "./assets/splash-icon.png",
+              "resizeMode": "contain",
+              "backgroundColor": "#ffffff"
+            },
+            "ios": {
+              "supportsTablet": true
+            },
+            "android": {
+              "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#ffffff"
+              },
+              "package": "com.citizenapp.mobile",
+              "permissions": [
+                "android.permission.RECORD_AUDIO"
+              ]
+            },
+            "web": {
+              "favicon": "./assets/favicon.png"
+            },
+            "plugins": [
+              [
+                "expo-image-picker",
+                {
+                  "photosPermission": "The app accesses your photos to let you share them with your complaints.",
+                  "cameraPermission": "The app accesses your camera to let you take photos for complaints."
+                }
+              ]
+            ],
+            "extra": {
+              "eas": {
+                "projectId": "458df376-755b-4892-ba9a-bcd7eb0c9fdd"
               }
             }
           }
         }
         EOF
-        
-        npx eas build --profile preview --platform android --wait
 
-    - name: Download APK
+    - name: Create optimized eas.json configuration
+      working-directory: ./client-citizen
+      run: |
+        cat > eas.json << 'EOF'
+        {
+          "cli": {
+            "version": ">= 7.6.0",
+            "appVersionSource": "remote"
+          },
+          "build": {
+            "preview": {
+              "distribution": "internal",
+              "android": {
+                "buildType": "apk",
+                "gradle": {
+                  "buildType": "release"
+                }
+              },
+              "env": {
+                "NODE_ENV": "production"
+              }
+            }
+          },
+          "submit": {
+            "production": {}
+          }
+        }
+        EOF
+
+    - name: Fix package versions and dependencies
+      working-directory: ./client-citizen
+      run: |
+        npx expo install --fix
+        npm audit fix --force || true
+
+    - name: Build Android APK with managed workflow
       working-directory: ./client-citizen
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
-        BUILD_INFO=$(npx eas build:list --platform=android --limit=1 --json)
-        BUILD_URL=$(echo $BUILD_INFO | jq -r '.[0].artifacts.buildUrl')
-        wget -O app-release.apk "$BUILD_URL"
+        # Start build and wait for completion
+        npx eas build --profile preview --platform android --wait --no-wait-for-build-id
 
-    - name: Upload APK to Release
+    - name: Download built APK
+      working-directory: ./client-citizen
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      run: |
+        # Get the latest build for this project
+        BUILD_INFO=$(npx eas build:list --platform=android --status=finished --limit=1 --json)
+        BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
+        
+        if [ -n "$BUILD_URL" ] && [ "$BUILD_URL" != "null" ]; then
+          echo "Downloading APK from: $BUILD_URL"
+          curl -L -o app-release.apk "$BUILD_URL"
+        else
+          echo "Failed to get build URL. Build info:"
+          echo "$BUILD_INFO"
+          exit 1
+        fi
+
+    - name: Verify APK was created
+      working-directory: ./client-citizen
+      run: |
+        if [ -f "app-release.apk" ]; then
+          ls -la app-release.apk
+          file app-release.apk
+          echo "APK size: $(du -h app-release.apk | cut -f1)"
+        else
+          echo "APK file not found!"
+          ls -la
+          exit 1
+        fi
+
+    - name: Upload APK to GitHub Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: client-citizen/app-release.apk
+        name: "Release ${{ github.ref_name }}"
+        body: |
+          ## Android APK Release
+          
+          Download the APK below and install it on your Android device.
+          
+          **Installation Instructions:**
+          1. Download the APK file
+          2. Enable "Unknown Sources" in your Android settings
+          3. Install the APK
+          
+          Built with Expo SDK 53
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build summary
+      if: always()
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- Node.js version: 18" >> $GITHUB_STEP_SUMMARY
+        echo "- Java version: 17" >> $GITHUB_STEP_SUMMARY
+        echo "- Build type: Managed workflow (removed android folder)" >> $GITHUB_STEP_SUMMARY
+        echo "- Output: APK for direct installation" >> $GITHUB_STEP_SUMMARY
+        if [ -f "client-citizen/app-release.apk" ]; then
+          echo "- Status: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- Status: ❌ FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
