@@ -36,6 +36,25 @@ jobs:
     - name: Install dependencies
       run: npm install
 
+    - name: Install React Navigation dependencies
+      run: npx expo install react-native-gesture-handler react-native-safe-area-context react-native-screens
+
+    - name: Fix Android resource conflicts
+      run: |
+        # Fix the duplicate resource issue by adding exclusions to app/build.gradle
+        sed -i '/android {/a\
+        packagingOptions {\
+            pickFirst "**/libc++_shared.so"\
+            pickFirst "**/libjsc.so"\
+        }\
+        \
+        configurations {\
+            all {\
+                exclude group: "com.google.android.material", module: "material"\
+                exclude group: "androidx.appcompat", module: "appcompat"\
+            }\
+        }' android/app/build.gradle
+
     - name: Build Android APK
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -44,12 +63,12 @@ jobs:
         npx eas build --profile preview --platform android --local --non-interactive --output=./app-release.apk
 
     - name: List files to verify APK
-      run: ls -R
+      run: ls -la *.apk
 
     - name: Upload APK to Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: client-citizen/app-release.apk
+        files: client-citizen/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
