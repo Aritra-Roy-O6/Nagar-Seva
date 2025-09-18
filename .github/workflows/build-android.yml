@@ -24,61 +24,91 @@ jobs:
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
     - name: Install dependencies
       run: npm install
 
     - name: Install React Navigation dependencies
       run: npx expo install react-native-gesture-handler react-native-safe-area-context react-native-screens
 
-    - name: Fix Android resource conflicts
+    - name: Force managed workflow by removing native folders
       run: |
-        # Create a more aggressive fix for the duplicate resource issue
-        cat >> android/app/build.gradle << 'EOF'
+        rm -rf android ios
+        git add . || true
+        git commit -m "Remove native folders for managed build" || true
 
-        android {
-            packagingOptions {
-                pickFirst "**/libc++_shared.so"
-                pickFirst "**/libjsc.so"
+    - name: Update app.json for managed build
+      run: |
+        # Ensure all native config is in app.json since we removed native folders
+        cat > app.json << 'EOF'
+        {
+          "expo": {
+            "name": "client-citizen",
+            "slug": "client-citizen", 
+            "version": "1.0.0",
+            "orientation": "portrait",
+            "icon": "./assets/icon.png",
+            "userInterfaceStyle": "light",
+            "newArchEnabled": true,
+            "splash": {
+              "image": "./assets/splash-icon.png",
+              "resizeMode": "contain",
+              "backgroundColor": "#ffffff"
+            },
+            "ios": {
+              "supportsTablet": true
+            },
+            "android": {
+              "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#ffffff"
+              },
+              "package": "com.citizenapp.mobile",
+              "permissions": [
+                "android.permission.RECORD_AUDIO"
+              ]
+            },
+            "web": {
+              "favicon": "./assets/favicon.png"
+            },
+            "plugins": [
+              [
+                "expo-image-picker",
+                {
+                  "photosPermission": "The app accesses your photos to let you share them with your complaints.",
+                  "cameraPermission": "The app accesses your camera to let you take photos for complaints."
+                }
+              ]
+            ],
+            "extra": {
+              "eas": {
+                "projectId": "458df376-755b-4892-ba9a-bcd7eb0c9fdd"
+              }
             }
-        }
-
-        configurations.all {
-            exclude group: 'com.google.android.material', module: 'material'
-            exclude group: 'androidx.appcompat', module: 'appcompat'
-            resolutionStrategy {
-                force 'androidx.appcompat:appcompat:1.6.1'
-            }
+          }
         }
         EOF
 
-    - name: Clean build directories
-      run: |
-        cd android
-        ./gradlew clean
-
-    - name: Build Android APK
+    - name: Build Android APK with clean managed workflow
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
         npx expo install --fix
-        npx eas build --profile preview --platform android --local --non-interactive --output=./app-release.apk
+        npx eas build --profile preview --platform android --non-interactive --wait
 
-    - name: List files to verify APK
-      run: ls -la *.apk
+    - name: Download APK from EAS
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      run: |
+        # Get the latest build info and download URL
+        BUILD_INFO=$(npx eas build:list --platform=android --limit=1 --json)
+        BUILD_URL=$(echo $BUILD_INFO | jq -r '.[0].artifacts.buildUrl')
+        wget -O app-release.apk "$BUILD_URL"
+        ls -la *.apk
 
     - name: Upload APK to Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: client-citizen/*.apk
+        files: client-citizen/app-release.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
