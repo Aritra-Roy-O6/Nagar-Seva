@@ -41,19 +41,29 @@ jobs:
 
     - name: Fix Android resource conflicts
       run: |
-        # Fix the duplicate resource issue by adding exclusions to app/build.gradle
-        sed -i '/android {/a\
-        packagingOptions {\
-            pickFirst "**/libc++_shared.so"\
-            pickFirst "**/libjsc.so"\
-        }\
-        \
-        configurations {\
-            all {\
-                exclude group: "com.google.android.material", module: "material"\
-                exclude group: "androidx.appcompat", module: "appcompat"\
-            }\
-        }' android/app/build.gradle
+        # Create a more aggressive fix for the duplicate resource issue
+        cat >> android/app/build.gradle << 'EOF'
+
+        android {
+            packagingOptions {
+                pickFirst "**/libc++_shared.so"
+                pickFirst "**/libjsc.so"
+            }
+        }
+
+        configurations.all {
+            exclude group: 'com.google.android.material', module: 'material'
+            exclude group: 'androidx.appcompat', module: 'appcompat'
+            resolutionStrategy {
+                force 'androidx.appcompat:appcompat:1.6.1'
+            }
+        }
+        EOF
+
+    - name: Clean build directories
+      run: |
+        cd android
+        ./gradlew clean
 
     - name: Build Android APK
       env:
