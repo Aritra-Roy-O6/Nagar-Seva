@@ -104,7 +104,7 @@ jobs:
         }
         EOF
 
-    - name: Create optimized eas.json configuration
+    - name: Create valid eas.json configuration
       working-directory: ./client-citizen
       run: |
         cat > eas.json << 'EOF'
@@ -117,13 +117,7 @@ jobs:
             "preview": {
               "distribution": "internal",
               "android": {
-                "buildType": "apk",
-                "gradle": {
-                  "buildType": "release"
-                }
-              },
-              "env": {
-                "NODE_ENV": "production"
+                "buildType": "apk"
               }
             }
           },
@@ -144,7 +138,6 @@ jobs:
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
-        # Start build and wait for completion
         npx eas build --profile preview --platform android --wait
 
     - name: Download built APK
@@ -152,7 +145,6 @@ jobs:
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
-        # Get the latest build for this project
         BUILD_INFO=$(npx eas build:list --platform=android --status=finished --limit=1 --json)
         BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
         
