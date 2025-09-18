@@ -9,9 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./client-citizen
 
     steps:
     - name: Checkout code
@@ -20,45 +17,58 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'  # Try older Node version
+        node-version: '18'
         cache: 'npm'
+        cache-dependency-path: 'client-citizen/package-lock.json'  # Fixed path
 
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '11'  # Try older Java version
+        java-version: '11'
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Clean install dependencies
+    - name: Install dependencies
+      working-directory: ./client-citizen
       run: |
         rm -rf node_modules package-lock.json
         npm install
 
-    - name: Downgrade problematic dependencies
-      run: |
-        npm install react-native@0.72.6
-        npm install @react-native-async-storage/async-storage@1.19.3
-        npx expo install --fix
-
-    - name: Install React Navigation dependencies (older versions)
-      run: |
-        npm install react-native-gesture-handler@2.12.1
-        npm install react-native-safe-area-context@4.7.4
-        npm install react-native-screens@3.25.0
-
-    - name: Use Turtle CLI instead of EAS
+    - name: Try simple Expo build without complications
+      working-directory: ./client-citizen
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       run: |
-        npm install -g turtle-cli
-        turtle setup:android --sdk-version 44.0.0
-        turtle build:android --keystore-path <(echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d) --keystore-password "${{ secrets.KEYSTORE_PASSWORD }}" --key-alias "${{ secrets.KEY_ALIAS }}" --key-password "${{ secrets.KEY_PASSWORD }}" --type apk --output ./app-release.apk
+        # Create minimal eas.json
+        cat > eas.json << 'EOF'
+        {
+          "cli": {
+            "version": ">= 7.6.0"
+          },
+          "build": {
+            "preview": {
+              "distribution": "internal",
+              "android": {
+                "buildType": "apk"
+              }
+            }
+          }
+        }
+        EOF
+        
+        # Simple build without complications
+        npx eas build --profile preview --platform android --wait
 
-    - name: List files to verify APK
-      run: ls -la *.apk
+    - name: Download APK
+      working-directory: ./client-citizen
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      run: |
+        BUILD_INFO=$(npx eas build:list --platform=android --limit=1 --json)
+        BUILD_URL=$(echo $BUILD_INFO | jq -r '.[0].artifacts.buildUrl')
+        wget -O app-release.apk "$BUILD_URL"
 
     - name: Upload APK to Release
       uses: softprops/action-gh-release@v2
