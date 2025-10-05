@@ -94,7 +94,8 @@ Nagar-Seva/
 
 Citizen Mobile App
 
-Admin Dashboard
+Admin Dashboard. 
+To login in the district admin dashboard, you have to add the secret key for the admin of each district. Which is: DISTRICTNAME_SECRET_KEY#2025
 
 Map Integration
 
